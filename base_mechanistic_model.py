@@ -10,10 +10,9 @@ import pandas as pd
 
 class BaseMechanisticModel(abc.ABC):
     def __init__(self):
-        self.intermediates = {}
-        self.validate_model_method()
-        self.new_intermediates = []
+        self.current_intermediates = {}
         self.closest_time_point = {}
+        self.validate_model_method()
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -30,13 +29,15 @@ class BaseMechanisticModel(abc.ABC):
         current_frame = inspect.currentframe()        
         caller_frame = current_frame.f_back
         local_vars = caller_frame.f_locals
-        if "self" in local_vars:
-            del local_vars["self"]
+        for var in ["self", "state_vars"]:
+            if var in local_vars:
+                del local_vars[var]
 
-        self.intermediates = local_vars.copy()
+        # Always keep the most recent timepoint stored 
+        self.current_intermediates = local_vars.copy()
 
+        # Use t_eval and t_span to determine what time points should be kept
         t = local_vars["t"]
-
         if not hasattr(self, "expected_times"):
             self.expected_times = self.precompute_time_points()
             self.current_expected_idx = 0
@@ -54,15 +55,15 @@ class BaseMechanisticModel(abc.ABC):
                 self.closest_time_point = local_vars.copy()
 
             if t > expected_t:
-                self.new_intermediates.append(self.closest_time_point)
+                self.saved_intermediates.append(self.closest_time_point)
                 self.current_expected_idx += 1
                 self.closest_time_point = None
 
         if self.current_expected_idx == final_index:
-            if len(self.new_intermediates) == final_index:
-                self.new_intermediates.append(local_vars.copy())
+            if len(self.saved_intermediates) == final_index:
+                self.saved_intermediates.append(local_vars.copy())
             else:
-                self.new_intermediates[-1] = local_vars.copy()
+                self.saved_intermediates[-1] = local_vars.copy()
 
     def validate_model_method(self):
         """Checks if `self.save()` is called in the `model` method and raises an error if commented out or missing."""
@@ -96,7 +97,8 @@ class BaseMechanisticModel(abc.ABC):
 
     def __filter_intermediates(self):
         """Private method to filter captured locals based on outputs."""
-        return {var: self.intermediates.get(var) for var in self.outputs if var in self.intermediates}
+        return {var: self.current_intermediates.get(var) for var in self.outputs 
+                if var in self.current_intermediates}
 
     @abc.abstractmethod
     def model(self, state_vars: list, t) -> List:
@@ -130,6 +132,7 @@ class BaseMechanisticModel(abc.ABC):
     ):
         self.t_eval = t_eval
         self.t_span = t_span
+        self.saved_intermediates = []
 
         if equation in []:
             pass # Run solve_ivp
@@ -223,13 +226,10 @@ class BaseMechanisticModel(abc.ABC):
                 model_results.append(self.__filter_intermediates())
     
         return model_results
-    
-    # TODO Need to standardize the output from run model 
-    # TODO Add methods to work with standardized output
-     
+
     def to_dataframe(self):
         """Convert intermediates to a pandas DataFrame."""
-        return pd.DataFrame(self.new_intermediates)
+        return pd.DataFrame(self.saved_intermediates)
     
     def precompute_time_points(self):
         """Precompute the expected time points for saving data."""
