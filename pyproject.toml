@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "ebbflow"
+version = "0.0.1"
+description = "A template class for developing mechanistic models"
+authors = ["BFieguth <bfieguth@uoguelph.ca>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+numpy = "^2.1.1"
+pandas = "^2.2.2"
+scipy = "^1.14.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

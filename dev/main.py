@@ -3,7 +3,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from base_mechanistic_model import BaseMechanisticModel
+from src.ebbflow.base_mechanistic_model import BaseMechanisticModel
 
 class DemoModel(BaseMechanisticModel):
     def __init__(self, kAB, kBO, YBAB, vol, outputs):
