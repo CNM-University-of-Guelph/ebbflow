@@ -32,7 +32,7 @@ class DemoModel(BaseMechanisticModel):
         # Differential Equations # 
         dAdt = -UAAB
         dBdt = PBAB - UBBO
-
+        self.save()
         return [dAdt, dBdt]
 
 

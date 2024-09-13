@@ -1,34 +1,101 @@
 import abc
 import sys
 from functools import wraps
+import inspect
+import re
+from typing import List
 
 import pandas as pd
 
 class BaseMechanisticModel(abc.ABC):
     def __init__(self):
         self.intermediates = {}
-   
-    def trace_func(self, frame, event, arg):
-        """Tracing function to capture local variables at return from the model."""
-        if event == "return" and frame.f_code.co_name == "model":
-            self.intermediates = frame.f_locals.copy()
-        return self.trace_func
+        self.validate_model_method()
 
-    def start_tracing(self):
-        """Enable tracing for the model method."""
-        sys.settrace(self.trace_func)
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        original_init = cls.__init__
 
-    def stop_tracing(self):
-        """Disable tracing."""
-        sys.settrace(None)
+        def wrapped_init(self, *args, **kwargs):
+            BaseMechanisticModel.__init__(self)
+            original_init(self, *args, **kwargs)
+
+        cls.__init__ = wrapped_init # Replace subclass __init__ with wrapped_init
+        
+    # def trace_func(self, frame, event, arg):
+    #     """Tracing function to capture local variables at return from the model."""
+    #     if event == "return" and frame.f_code.co_name == "model":
+    #         self.intermediates = frame.f_locals.copy()
+    #     return self.trace_func
+
+    # def start_tracing(self):
+    #     """Enable tracing for the model method."""
+    #     sys.settrace(self.trace_func)
+
+    # def stop_tracing(self):
+    #     """Disable tracing."""
+    #     sys.settrace(None)
+
+    def save(self):
+        """Store the local scope of the calling function."""
+        current_frame = inspect.currentframe()        
+        caller_frame = current_frame.f_back
+        local_vars = caller_frame.f_locals
+        self.intermediates = local_vars.copy()
+
+    def validate_model_method(self):
+        """Checks if `self.save()` is called in the `model` method and raises an error if commented out or missing."""
+        save_called = False
+        commented_out = False
+       
+        try:
+            source_code = inspect.getsource(self.model)
+        except TypeError:
+            raise TypeError(
+                "Model method is not defined or cannot retrieve source."
+                )        
+        lines = source_code.split('\n')
+        pattern = re.compile(r'\bself\.save\(\)')
+        for line in lines:
+            if pattern.search(line):
+                if line.strip().startswith('#'):
+                    commented_out = True
+                else:
+                    save_called = True
+                break
+
+        if commented_out:
+            raise ValueError(
+                "The method `self.save()` is commented out in the `model` method."
+                )
+        if not save_called:
+            raise ValueError(
+                "The method `self.save()` is not called in the `model` method."
+                )
 
     def __filter_intermediates(self):
         """Private method to filter captured locals based on outputs."""
         return {var: self.intermediates.get(var) for var in self.outputs if var in self.intermediates}
 
     @abc.abstractmethod
-    def model(self, state_vars, t):
-        """User-defined model function. Must return only differentials."""
+    def model(self, state_vars: list, t) -> List:
+        """
+        User-defined model function.
+
+        This method must return a list of differentials corresponding to the state variables.
+
+        Instructions for users:
+        - You are expected to implement the mechanistic model dynamics inside this method.
+        - Before the return statement, you must call `self.save()` to capture the intermediate variables.
+        - The returned list must contain the differential equations representing the rate of change for each state variable.
+
+        Args:
+            state_vars (list): The list of current state variables.
+            t (float): The current time point.
+
+        Returns:
+            list: A list of differentials representing the rate of change of the state variables.
+        """
         pass
 
     def run_model(
@@ -45,7 +112,7 @@ class BaseMechanisticModel(abc.ABC):
             pass # Run solve_ivp
 
         elif equation == "RK4":
-            self.start_tracing()
+            # self.start_tracing()
             results = self.runge_kutta_4th_order(
                 t_span=t_span,
                 y0=y0,
@@ -54,7 +121,7 @@ class BaseMechanisticModel(abc.ABC):
                 prev_output=prev_output
             )
     
-        self.stop_tracing()
+        # self.stop_tracing()
         return results
 
     def runge_kutta_4th_order(
