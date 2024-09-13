@@ -57,26 +57,36 @@ if __name__ == "__main__":
     elapsed_time = time.time() - start_time
     print(f"First model run completed in {elapsed_time:.4f} seconds.")
 
+    print("Expected Dataframe: \n")
     df = convert_list_to_dataframe(result)
     print(df)
 
+
+    print("Actual Dataframe: \n")
+    print(demo.to_dataframe())
+
+
     # Test restarting from prev_output
-    new_stateVars =  df.iloc[-1, df.columns.isin(['A', 'B'])].tolist()
+    # new_stateVars =  df.iloc[-1, df.columns.isin(['A', 'B'])].tolist()
     
-    print("\nStarting second model run...")
-    start_time = time.time()
+    # print("\nStarting second model run...")
+    # start_time = time.time()
 
-    demo = DemoModel(
-        kAB=0.5, kBO=0.03, YBAB=1.0, vol=1.0, 
-        outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
-    )
-    result2 = demo.run_model(
-        "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=10, 
-        integ_interval=0.01, prev_output=df
-        )
+    # demo = DemoModel(
+    #     kAB=0.5, kBO=0.03, YBAB=1.0, vol=1.0, 
+    #     outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
+    # )
+    # result2 = demo.run_model(
+    #     "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=10, 
+    #     integ_interval=0.01, prev_output=df
+    #     )
 
-    elapsed_time = time.time() - start_time
-    print(f"Second model run completed in {elapsed_time:.4f} seconds.")
+    # elapsed_time = time.time() - start_time
+    # print(f"Second model run completed in {elapsed_time:.4f} seconds.")
 
-    df2 = convert_list_to_dataframe(result2)
-    print(df2)
+    # print("Expected Dataframe: \n")
+    # df2 = convert_list_to_dataframe(result2)
+    # print(df2)
+
+    # print("Actual Dataframe: \n")
+    # print(demo.to_dataframe())

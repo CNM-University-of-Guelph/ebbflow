@@ -4,6 +4,7 @@ from functools import wraps
 import inspect
 import re
 from typing import List
+from collections import deque
 
 import pandas as pd
 
@@ -11,6 +12,8 @@ class BaseMechanisticModel(abc.ABC):
     def __init__(self):
         self.intermediates = {}
         self.validate_model_method()
+        self.new_intermediates = []
+        self.closest_time_point = {}
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -22,26 +25,44 @@ class BaseMechanisticModel(abc.ABC):
 
         cls.__init__ = wrapped_init # Replace subclass __init__ with wrapped_init
         
-    # def trace_func(self, frame, event, arg):
-    #     """Tracing function to capture local variables at return from the model."""
-    #     if event == "return" and frame.f_code.co_name == "model":
-    #         self.intermediates = frame.f_locals.copy()
-    #     return self.trace_func
-
-    # def start_tracing(self):
-    #     """Enable tracing for the model method."""
-    #     sys.settrace(self.trace_func)
-
-    # def stop_tracing(self):
-    #     """Disable tracing."""
-    #     sys.settrace(None)
-
     def save(self):
         """Store the local scope of the calling function."""
         current_frame = inspect.currentframe()        
         caller_frame = current_frame.f_back
         local_vars = caller_frame.f_locals
+        if "self" in local_vars:
+            del local_vars["self"]
+
         self.intermediates = local_vars.copy()
+
+        t = local_vars["t"]
+
+        if not hasattr(self, "expected_times"):
+            self.expected_times = self.precompute_time_points()
+            self.current_expected_idx = 0
+            self.closest_time_point = None
+
+        final_index = len(self.expected_times) - 1
+
+        if self.current_expected_idx < final_index:
+            expected_t = self.expected_times[self.current_expected_idx]
+
+            if self.closest_time_point is None:
+                self.closest_time_point = local_vars.copy()
+
+            if abs(t - expected_t) < abs(self.closest_time_point["t"] - expected_t):
+                self.closest_time_point = local_vars.copy()
+
+            if t > expected_t:
+                self.new_intermediates.append(self.closest_time_point)
+                self.current_expected_idx += 1
+                self.closest_time_point = None
+
+        if self.current_expected_idx == final_index:
+            if len(self.new_intermediates) == final_index:
+                self.new_intermediates.append(local_vars.copy())
+            else:
+                self.new_intermediates[-1] = local_vars.copy()
 
     def validate_model_method(self):
         """Checks if `self.save()` is called in the `model` method and raises an error if commented out or missing."""
@@ -107,12 +128,13 @@ class BaseMechanisticModel(abc.ABC):
         integ_interval, 
         prev_output=None
     ):
+        self.t_eval = t_eval
+        self.t_span = t_span
 
         if equation in []:
             pass # Run solve_ivp
 
         elif equation == "RK4":
-            # self.start_tracing()
             results = self.runge_kutta_4th_order(
                 t_span=t_span,
                 y0=y0,
@@ -121,7 +143,6 @@ class BaseMechanisticModel(abc.ABC):
                 prev_output=prev_output
             )
     
-        # self.stop_tracing()
         return results
 
     def runge_kutta_4th_order(
@@ -206,3 +227,16 @@ class BaseMechanisticModel(abc.ABC):
     # TODO Need to standardize the output from run model 
     # TODO Add methods to work with standardized output
      
+    def to_dataframe(self):
+        """Convert intermediates to a pandas DataFrame."""
+        return pd.DataFrame(self.new_intermediates)
+    
+    def precompute_time_points(self):
+        """Precompute the expected time points for saving data."""
+        start_time, end_time = self.t_span
+        expected_times = []
+        t = start_time
+        while t <= end_time:
+            expected_times.append(t)
+            t += self.t_eval
+        return expected_times
