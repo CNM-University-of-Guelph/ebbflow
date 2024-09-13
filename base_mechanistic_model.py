@@ -5,6 +5,7 @@ import re
 from typing import List
 
 import pandas as pd
+import scipy.integrate as integrate
 
 class BaseMechanisticModel(abc.ABC):
     def __init__(self):
@@ -38,10 +39,13 @@ class BaseMechanisticModel(abc.ABC):
 
         # Use t_eval and t_span to determine what time points should be kept
         t = local_vars["t"]
-        if not hasattr(self, "expected_times"):
-            self.expected_times = self.precompute_time_points()
+        if not hasattr(self, "expected_times"):            
             self.current_expected_idx = 0
             self.closest_time_point = None
+            self.expected_times = self.precompute_time_points()
+            # self.expected_times = list(self.t_eval)   
+            # NOTE For some reason it is faster to call precompute_time_points 
+            # than it is to use the t_eval array???
 
         final_index = len(self.expected_times) - 1
 
@@ -101,7 +105,7 @@ class BaseMechanisticModel(abc.ABC):
                 if var in self.current_intermediates}
 
     @abc.abstractmethod
-    def model(self, state_vars: list, t) -> List:
+    def model(self, t, state_vars: list) -> List:
         """
         User-defined model function.
 
@@ -113,8 +117,8 @@ class BaseMechanisticModel(abc.ABC):
         - The returned list must contain the differential equations representing the rate of change for each state variable.
 
         Args:
-            state_vars (list): The list of current state variables.
             t (float): The current time point.
+            state_vars (list): The list of current state variables.
 
         Returns:
             list: A list of differentials representing the rate of change of the state variables.
@@ -127,7 +131,7 @@ class BaseMechanisticModel(abc.ABC):
         t_span, 
         y0, 
         t_eval, 
-        integ_interval, 
+        integ_interval = None, 
         prev_output=None,
         name=None
     ):
@@ -136,8 +140,13 @@ class BaseMechanisticModel(abc.ABC):
         self.saved_intermediates = []   # Reset every model run
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if equation in []:
-            pass # Run solve_ivp
+        if equation == "solve_ivp":
+            solver_output = integrate.solve_ivp(
+                self.model,
+                t_span=t_span,
+                y0=y0,
+                t_eval=t_eval
+            )
 
         elif equation == "RK4":
             solver_output = self.runge_kutta_4th_order(
@@ -147,6 +156,9 @@ class BaseMechanisticModel(abc.ABC):
                 integ_interval=integ_interval,
                 prev_output=prev_output
             )
+
+        else:
+            raise ValueError("equation must be one of 'RK4' or 'solve_ivp'")
     
         if name is None:
             self.result_count += 1
@@ -176,8 +188,9 @@ class BaseMechanisticModel(abc.ABC):
             start_time, stop_time = t_span
             run_time = stop_time - start_time
             last_interval_number = int(run_time / integ_interval)
-            intervals_to_communicate = int(t_eval / integ_interval)
-            
+            step_size = t_eval[1] - t_eval[0]
+            intervals_to_communicate = int(step_size / integ_interval)
+                        
             # Set initial t
             if start_time == 0:
                 t = 0.0
@@ -205,7 +218,7 @@ class BaseMechanisticModel(abc.ABC):
             sixth_interval = integ_interval / 6
 
             for n in range(4):
-                differential_return = self.model(state_vars=state_vars, t=t)                  
+                differential_return = self.model(t=t, state_vars=state_vars)                  
                 slopes.append(differential_return)
 
                 for svno in range(len(state_vars)):
@@ -255,7 +268,8 @@ class BaseMechanisticModel(abc.ABC):
         start_time, end_time = self.t_span
         expected_times = []
         t = start_time
+        step_size = int(self.t_eval[1] - self.t_eval[0])
         while t <= end_time:
             expected_times.append(t)
-            t += self.t_eval
+            t += step_size
         return expected_times

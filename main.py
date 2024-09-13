@@ -1,5 +1,6 @@
 import time
 
+import numpy as np
 import pandas as pd
 
 from base_mechanistic_model import BaseMechanisticModel
@@ -12,7 +13,7 @@ class DemoModel(BaseMechanisticModel):
         self.vol = vol        
         self.outputs = outputs
     
-    def model(self, state_vars, t):
+    def model(self, t, state_vars):
         kAB = self.kAB
         kBO = self.kBO
         YBAB = self.YBAB
@@ -44,20 +45,25 @@ if __name__ == "__main__":
         kAB=0.42, kBO=0.03, YBAB=1.0, vol=1.0, 
         outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
     )
+
+
+    # demo.run_model(
+    #     "solve_ivp", t_span=(0, 120), y0=[3.811004739069482, 4.473254058347129],
+    #     t_eval=np.arange(0,121,10), integ_interval=0.001, name="test1"
+    #     )
+    
+
     demo.run_model(
         "RK4", t_span=(0, 120), y0=[3.811004739069482, 4.473254058347129],
-        t_eval=10, integ_interval=0.001, name="test1"
-        )
-    
+        t_eval=np.arange(0,121,10), integ_interval=0.001, name="test1"
+        )    
+        
     elapsed_time = time.time() - start_time
     print(f"First model run completed in {elapsed_time:.4f} seconds.")
 
-    df = demo.to_dataframe()
+    # df = demo.to_dataframe()
+    df = demo.model_results["test1"]["intermediates"]
     print(df)
-
-    # print("\nINTERMEDIATES")
-    # print(demo.model_results["test1"]["intermediates"])
-
 
 
     # # Test restarting from prev_output
