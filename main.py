@@ -47,8 +47,8 @@ if __name__ == "__main__":
     )
 
     demo.run_model(
-        "solve_ivp", t_span=(0, 220), y0=[3.811004739069482, 4.473254058347129],
-        t_eval=np.arange(0,221,10), integ_interval=0.001, name="test1"
+        "RK4", t_span=(0, 120), y0=[3.811004739069482, 4.473254058347129],
+        t_eval=np.arange(0,121,10), integ_interval=0.001, name="test1"
         )
         
     elapsed_time = time.time() - start_time
@@ -58,23 +58,23 @@ if __name__ == "__main__":
     print(df)
 
 
-    # # Test restarting from prev_output
-    # new_stateVars =  df.iloc[-1, df.columns.isin(['A', 'B'])].tolist()
+    # Test restarting from prev_output
+    new_stateVars =  df.iloc[-1, df.columns.isin(['A', 'B'])].tolist()
     
-    # print("\nStarting second model run...")
-    # start_time = time.time()
+    print("\nStarting second model run...")
+    start_time = time.time()
 
-    # demo = DemoModel(
-    #     kAB=0.5, kBO=0.03, YBAB=1.0, vol=1.0, 
-    #     outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
-    # )
-    # demo.run_model(
-    #     "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=np.arange(120,221,10), 
-    #     integ_interval=0.01, prev_output=df
-    #     )
+    demo = DemoModel(
+        kAB=0.5, kBO=0.03, YBAB=1.0, vol=1.0, 
+        outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
+    )
+    demo.run_model(
+        "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=np.arange(120,221,10), 
+        integ_interval=0.01, prev_output=df
+        )
 
-    # elapsed_time = time.time() - start_time
-    # print(f"Second model run completed in {elapsed_time:.4f} seconds.")
+    elapsed_time = time.time() - start_time
+    print(f"Second model run completed in {elapsed_time:.4f} seconds.")
 
-    # df2 = demo.to_dataframe()
-    # print(df2)
+    df2 = demo.to_dataframe()
+    print(df2)

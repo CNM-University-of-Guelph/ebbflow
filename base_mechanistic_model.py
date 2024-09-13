@@ -3,9 +3,10 @@ import ast
 import datetime
 import inspect
 import re
-from typing import List
 import textwrap
+from typing import List, Type, Dict, Any, Tuple, Optional, Generator
 
+import numpy as np
 import pandas as pd
 import scipy.integrate as integrate
 
@@ -15,9 +16,13 @@ class BaseMechanisticModel(abc.ABC):
         self.closest_time_point = {}
         self.model_results = {}
         self.result_count = 0
-        self.validate_model_method()
+        self.__validate_model_method()
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls: Type["BaseMechanisticModel"], **kwargs) -> None:
+        """
+        Wraps the __init__ method of subclasses to ensure BaseMechanisticModel 
+        is properly initialized.
+        """
         super().__init_subclass__(**kwargs)
         original_init = cls.__init__
 
@@ -27,52 +32,30 @@ class BaseMechanisticModel(abc.ABC):
 
         cls.__init__ = wrapped_init # Replace subclass __init__ with wrapped_init
         
-    def save(self):
-        """Store the local scope of the calling function."""
-        current_frame = inspect.currentframe()        
-        caller_frame = current_frame.f_back
-        local_vars = caller_frame.f_locals
-        for var in ["self", "state_vars"]:
-            if var in local_vars:
-                del local_vars[var]
+    @abc.abstractmethod
+    def model(self, t: float, state_vars: List[float]) -> List[float]:
+        """
+        User-defined model function.
 
-        # Always keep the most recent timepoint stored 
-        self.current_intermediates = local_vars.copy()
+        This method must return a list of differentials corresponding to the state variables.
 
-        # Use t_eval and t_span to determine what time points should be kept
-        t = local_vars["t"]
-        if not hasattr(self, "expected_times"):            
-            self.current_expected_idx = 0
-            self.closest_time_point = None
-            self.expected_times = self.precompute_time_points()
-            # self.expected_times = list(self.t_eval)   
-            # NOTE For some reason it is faster to call precompute_time_points 
-            # than it is to use the t_eval array???
+        Instructions for users:
+        - You are expected to implement the mechanistic model dynamics inside this method.
+        - Before the return statement, you must call `self.save()` to capture the intermediate variables.
+        - The returned list must contain the differential equations representing the rate of change for each state variable.
 
-        final_index = len(self.expected_times) - 1
+        Args:
+            t (float): The current time point.
+            state_vars (list): The list of current state variables.
 
-        if self.current_expected_idx < final_index:
-            expected_t = self.expected_times[self.current_expected_idx]
+        Returns:
+            list: A list of differentials representing the rate of change of the state variables.
+        """
+        pass
 
-            if self.closest_time_point is None:
-                self.closest_time_point = local_vars.copy()
-
-            if abs(t - expected_t) < abs(self.closest_time_point["t"] - expected_t):
-                self.closest_time_point = local_vars.copy()
-
-            if t > expected_t:
-                self.saved_intermediates.append(self.closest_time_point)
-                self.current_expected_idx += 1
-                self.closest_time_point = None
-
-        if self.current_expected_idx == final_index:
-            if len(self.saved_intermediates) == final_index:
-                self.saved_intermediates.append(local_vars.copy())
-            else:
-                self.saved_intermediates[-1] = local_vars.copy()
-
-    def validate_model_method(self):
-        """Checks if `self.save()` is called in the `model` method and raises an error if commented out or missing."""
+    # Private Methods
+    def __validate_model_method(self) -> None:
+        """Checks if `self.save()` is called in the `model` method."""
         save_called = False
         commented_out = False
        
@@ -101,92 +84,46 @@ class BaseMechanisticModel(abc.ABC):
                 "The method `self.save()` is not called in the `model` method."
                 )
 
-    def __filter_intermediates(self):
-        """Private method to filter captured locals based on outputs."""
+    def __filter_intermediates(self) -> Dict[str, Any]:
+        """Filters captured locals based on outputs.
+
+        This is used by runge_kutta_4th_order.
+
+        Returns:
+            dict: A dictionary of filtered intermediate values.
+        """
         return {var: self.current_intermediates.get(var) for var in self.outputs 
                 if var in self.current_intermediates}
 
-    @abc.abstractmethod
-    def model(self, t, state_vars: list) -> List:
+    def __runge_kutta_4th_order(
+        self, 
+        t_span: Tuple[int, int], 
+        y0: List[float], 
+        t_eval: np.ndarray, 
+        integ_interval: float, 
+        prev_output: Optional[pd.DataFrame] = None
+    ) -> List[Dict[str, float]]:
         """
-        User-defined model function.
-
-        This method must return a list of differentials corresponding to the state variables.
-
-        Instructions for users:
-        - You are expected to implement the mechanistic model dynamics inside this method.
-        - Before the return statement, you must call `self.save()` to capture the intermediate variables.
-        - The returned list must contain the differential equations representing the rate of change for each state variable.
+        Run the 4th-order Runge-Kutta algorithm.
 
         Args:
-            t (float): The current time point.
-            state_vars (list): The list of current state variables.
+            t_span (tuple): A tuple (start_time, stop_time) defining the time span of the integration.
+            y0 (list): Initial values of the state variables.
+            t_eval (np.ndarray): Time points to evaluate the solution.
+            integ_interval (float): The integration interval for Runge-Kutta.
+            prev_output (pd.DataFrame, optional): A DataFrame containing previous output to resume the integration.
 
         Returns:
-            list: A list of differentials representing the rate of change of the state variables.
+            list: The model results, including computed state variables at desired time points.
         """
-        pass
-
-    def run_model(
-        self, 
-        equation: str, 
-        t_span, 
-        y0, 
-        t_eval, 
-        integ_interval = None, 
-        prev_output=None,
-        name=None
-    ):
-        self.t_eval = t_eval
-        self.t_span = t_span
-        self.saved_intermediates = []   # Reset every model run
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        if equation == "solve_ivp":
-            solver_output = integrate.solve_ivp(
-                self.model,
-                t_span=t_span,
-                y0=y0,
-                t_eval=t_eval
-            )
-
-        elif equation == "RK4":
-            solver_output = self.runge_kutta_4th_order(
-                t_span=t_span,
-                y0=y0,
-                t_eval=t_eval,
-                integ_interval=integ_interval,
-                prev_output=prev_output
-            )
-
-        else:
-            raise ValueError("equation must be one of 'RK4' or 'solve_ivp'")
-    
-        if name is None:
-            self.result_count += 1
-            name = f"result_{self.result_count}"
-
-        result_entry = {
-            "name": name,
-            "solver_output": solver_output,
-            "intermediates": pd.DataFrame(self.saved_intermediates),
-            "timestamp": timestamp,
-            "solver_id": equation
-        }
-        self.model_results[name] = result_entry        
-
-    def runge_kutta_4th_order(
-        self, 
-        t_span, 
-        y0, 
-        t_eval, 
-        integ_interval, 
-        prev_output = None
-    ):
-        """Main function that runs the Runge-Kutta algorithm."""
         
-        def interval_generator():
-            """Generator function to dynamically yield intervals."""
+        def interval_generator() -> Generator[tuple[float, bool], None, None]:
+            """
+            Generator function to dynamically yield time intervals and whether to append results.
+
+            Yields:
+                tuple[float, bool]: A tuple containing the current time (float) and a boolean indicating whether to append results.
+            """
             start_time, stop_time = t_span
             run_time = stop_time - start_time
             last_interval_number = int(run_time / integ_interval)
@@ -205,14 +142,24 @@ class BaseMechanisticModel(abc.ABC):
 
             # Yield time intervals
             for interval_number in range(last_interval_number):
-                remainder = (interval_number + 1) / intervals_to_communicate - int((interval_number + 1) / intervals_to_communicate)
+                remainder = ((interval_number + 1) / intervals_to_communicate - 
+                             int((interval_number + 1) / intervals_to_communicate))
                 append_results = (remainder == 0) if t != 0.0 else True
                 yield t, append_results
                 t += integ_interval
 
 
-        def runge_kutta_step(state_vars, t):
-            """Runge-Kutta step that computes new state variables."""
+        def runge_kutta_step(state_vars: List[float], t: float) -> List[float]:
+            """
+            Performs one step of the Runge-Kutta integration.
+
+            Args:
+                state_vars (list): Current values of the state variables.
+                t (float): The current time.
+
+            Returns:
+                list: Updated state variables after the Runge-Kutta step.
+            """
             slopes = []  # To store the slopes for the RK4 method
             start = []  # Stores initial values for the RK4 integration
             
@@ -255,29 +202,13 @@ class BaseMechanisticModel(abc.ABC):
     
         return model_results
 
-    def to_dataframe(self, name=None):
-        """Export results as a pandas DataFrame."""
-        if name is None:
-            last_key = list(self.model_results.keys())[-1]
-            result = self.model_results[last_key]
-        else:
-            result = self.model_results[name]
+    def __precompute_time_points(self) -> List[int]:
+        """
+        Precomputes the expected time points for saving data.
 
-        if result["solver_id"] == "RK4":
-            return pd.DataFrame(result["solver_output"])
-        elif result["solver_id"] == "solve_ivp":
-            df = pd.DataFrame({
-                "t": result["solver_output"].t
-            })
-
-            column_names = self.extract_return_names()
-
-            for i, col_name in enumerate(column_names):
-                df[col_name] = result["solver_output"].y[i]
-            return df
-    
-    def precompute_time_points(self):
-        """Precompute the expected time points for saving data."""
+        Returns:
+            list: A list of expected time points based on t_eval.
+        """
         start_time, end_time = self.t_span
         expected_times = []
         t = start_time
@@ -287,8 +218,13 @@ class BaseMechanisticModel(abc.ABC):
             t += step_size
         return expected_times
 
-    def extract_return_names(self):
-        """Extract variable names from the return statement of the given function."""
+    def __extract_return_names(self) -> List[str]:
+        """
+        Extracts variable names from the return statement of the model function.
+
+        Returns:
+            list: A list of variable names, with 'd' and 'dt' stripped from the names.
+        """
         source = inspect.getsource(self.model)
         source = textwrap.dedent(source)
         tree = ast.parse(source)
@@ -304,3 +240,143 @@ class BaseMechanisticModel(abc.ABC):
                 elif isinstance(node.value, ast.Name):
                     return [node.value.id[1:-2]]
         return []
+
+    # Public Methods
+    def save(self) -> None:
+        """Store the local scope of the calling function and handle time-point capture."""
+        # Get local variables from self.model()
+        current_frame = inspect.currentframe()        
+        caller_frame = current_frame.f_back
+        local_vars = caller_frame.f_locals
+        for var in ["self", "state_vars"]:
+            if var in local_vars:
+                del local_vars[var]
+
+        # Always keep the most recent time-point stored 
+        self.current_intermediates = local_vars.copy()
+
+        # Use t_eval and t_span to determine what time-points should be kept
+        t = local_vars["t"]
+        if not hasattr(self, "expected_times"):            
+            self.current_expected_idx = 0
+            self.closest_time_point = None
+            self.expected_times = self.__precompute_time_points()
+            # self.expected_times = list(self.t_eval)   
+            # NOTE For some reason it is faster to call precompute_time_points 
+            # than it is to use the t_eval array???
+
+        final_index = len(self.expected_times) - 1
+
+        # Determine if the current time-point should be saved
+        if self.current_expected_idx < final_index:
+            expected_t = self.expected_times[self.current_expected_idx]
+
+            if self.closest_time_point is None:
+                self.closest_time_point = local_vars.copy()
+
+            if abs(t - expected_t) < abs(self.closest_time_point["t"] - expected_t):
+                self.closest_time_point = local_vars.copy()
+
+            if t > expected_t:
+                self.saved_intermediates.append(self.closest_time_point)
+                self.current_expected_idx += 1
+                self.closest_time_point = None
+
+        if self.current_expected_idx == final_index:
+            if len(self.saved_intermediates) == final_index:
+                self.saved_intermediates.append(local_vars.copy())
+            else:
+                self.saved_intermediates[-1] = local_vars.copy()
+
+    def run_model(
+        self, 
+        equation: str, 
+        t_span: Tuple[int, int], 
+        y0: List[float], 
+        t_eval: np.ndarray, 
+        integ_interval: Optional[float] = None, 
+        prev_output: Optional[pd.DataFrame] = None,
+        name: Optional[str] = None
+    ) -> None:
+        """
+        Run the model using the specified integration method.
+
+        Args:
+            equation (str): The solver to use ('RK4' or 'solve_ivp').
+            t_span (tuple): The time span for the integration.
+            y0 (list): Initial state variables.
+            t_eval (np.ndarray): Time points at which to store the solution.
+            integ_interval (float, optional): Integration interval for RK4. Defaults to None.
+            prev_output (pd.DataFrame, optional): Previous model output for restarting integration. Defaults to None.
+            name (str, optional): The name of the result. Defaults to None.
+        """
+        self.t_eval = t_eval
+        self.t_span = t_span
+        self.saved_intermediates = []   # Reset every model run
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if equation == "solve_ivp":
+            solver_output = integrate.solve_ivp(
+                self.model,
+                t_span=t_span,
+                y0=y0,
+                t_eval=t_eval
+            )
+
+        elif equation == "RK4":
+            solver_output = self.__runge_kutta_4th_order(
+                t_span=t_span,
+                y0=y0,
+                t_eval=t_eval,
+                integ_interval=integ_interval,
+                prev_output=prev_output
+            )
+
+        else:
+            raise ValueError("equation must be one of 'RK4' or 'solve_ivp'")
+    
+        if name is None:
+            self.result_count += 1
+            name = f"result_{self.result_count}"
+
+        result_entry = {
+            "name": name,
+            "solver_output": solver_output,
+            "intermediates": pd.DataFrame(self.saved_intermediates),
+            "timestamp": timestamp,
+            "solver_id": equation
+        }
+        self.model_results[name] = result_entry     
+
+        # Delete self.expected_times after the run is complete
+        if hasattr(self, 'expected_times'):
+            del self.expected_times
+
+    def to_dataframe(self, name: Optional[str] = None):
+        """Exports the model results as a pandas DataFrame.
+
+        Args:
+            name (str, optional): The name of the result to export. If None, the most recent result is used. Defaults to None.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the results.
+        """
+        if name is None:
+            last_key = list(self.model_results.keys())[-1]
+            result = self.model_results[last_key]
+        else:
+            result = self.model_results[name]
+
+        if result["solver_id"] == "RK4":
+            return pd.DataFrame(result["solver_output"])
+        elif result["solver_id"] == "solve_ivp":
+            df = pd.DataFrame({
+                "t": result["solver_output"].t
+            })
+
+            column_names = self.__extract_return_names()
+
+            for i, col_name in enumerate(column_names):
+                df[col_name] = result["solver_output"].y[i]
+            return df
+    
