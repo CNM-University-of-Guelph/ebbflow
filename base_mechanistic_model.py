@@ -1,4 +1,5 @@
 import abc
+import datetime
 import inspect
 import re
 from typing import List
@@ -9,6 +10,8 @@ class BaseMechanisticModel(abc.ABC):
     def __init__(self):
         self.current_intermediates = {}
         self.closest_time_point = {}
+        self.model_results = {}
+        self.result_count = 0
         self.validate_model_method()
 
     def __init_subclass__(cls, **kwargs):
@@ -125,17 +128,19 @@ class BaseMechanisticModel(abc.ABC):
         y0, 
         t_eval, 
         integ_interval, 
-        prev_output=None
+        prev_output=None,
+        name=None
     ):
         self.t_eval = t_eval
         self.t_span = t_span
-        self.saved_intermediates = []
+        self.saved_intermediates = []   # Reset every model run
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         if equation in []:
             pass # Run solve_ivp
 
         elif equation == "RK4":
-            results = self.runge_kutta_4th_order(
+            solver_output = self.runge_kutta_4th_order(
                 t_span=t_span,
                 y0=y0,
                 t_eval=t_eval,
@@ -143,7 +148,18 @@ class BaseMechanisticModel(abc.ABC):
                 prev_output=prev_output
             )
     
-        return results
+        if name is None:
+            self.result_count += 1
+            name = f"result_{self.result_count}"
+
+        result_entry = {
+            "name": name,
+            "solver_output": solver_output,
+            "intermediates": pd.DataFrame(self.saved_intermediates),
+            "timestamp": timestamp,
+            "solver_id": equation
+        }
+        self.model_results[name] = result_entry        
 
     def runge_kutta_4th_order(
         self, 
@@ -224,9 +240,15 @@ class BaseMechanisticModel(abc.ABC):
     
         return model_results
 
-    def to_dataframe(self):
-        """Convert intermediates to a pandas DataFrame."""
-        return pd.DataFrame(self.saved_intermediates)
+    def to_dataframe(self, name=None):
+        """Export results as a pandas DataFrame."""
+        if name is None:
+            last_key = list(self.model_results.keys())[-1]
+            result = self.model_results[last_key]
+        else:
+            result = self.model_results[name]
+
+        return pd.DataFrame(result["solver_output"])
     
     def precompute_time_points(self):
         """Precompute the expected time points for saving data."""

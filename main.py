@@ -37,11 +37,6 @@ class DemoModel(BaseMechanisticModel):
 
 
 if __name__ == "__main__":
-    def convert_list_to_dataframe(data: list):
-        columns = ['t', 'A', 'B', 'concA', 'concB', 'dAdt']
-        df = pd.DataFrame(data, columns=columns)
-        return df
-
     print("Starting model run...")
     start_time = time.time()
 
@@ -49,24 +44,23 @@ if __name__ == "__main__":
         kAB=0.42, kBO=0.03, YBAB=1.0, vol=1.0, 
         outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
     )
-    result = demo.run_model(
+    demo.run_model(
         "RK4", t_span=(0, 120), y0=[3.811004739069482, 4.473254058347129],
-        t_eval=10, integ_interval=0.001
+        t_eval=10, integ_interval=0.001, name="test1"
         )
     
     elapsed_time = time.time() - start_time
     print(f"First model run completed in {elapsed_time:.4f} seconds.")
 
-    print("Expected Dataframe: \n")
-    df = convert_list_to_dataframe(result)
+    df = demo.to_dataframe()
     print(df)
 
+    # print("\nINTERMEDIATES")
+    # print(demo.model_results["test1"]["intermediates"])
 
-    print("Actual Dataframe: \n")
-    print(demo.to_dataframe())
 
 
-    # Test restarting from prev_output
+    # # Test restarting from prev_output
     # new_stateVars =  df.iloc[-1, df.columns.isin(['A', 'B'])].tolist()
     
     # print("\nStarting second model run...")
@@ -76,7 +70,7 @@ if __name__ == "__main__":
     #     kAB=0.5, kBO=0.03, YBAB=1.0, vol=1.0, 
     #     outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
     # )
-    # result2 = demo.run_model(
+    # demo.run_model(
     #     "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=10, 
     #     integ_interval=0.01, prev_output=df
     #     )
@@ -84,9 +78,5 @@ if __name__ == "__main__":
     # elapsed_time = time.time() - start_time
     # print(f"Second model run completed in {elapsed_time:.4f} seconds.")
 
-    # print("Expected Dataframe: \n")
-    # df2 = convert_list_to_dataframe(result2)
+    # df2 = demo.to_dataframe()
     # print(df2)
-
-    # print("Actual Dataframe: \n")
-    # print(demo.to_dataframe())
