@@ -1,8 +1,10 @@
 import abc
+import ast
 import datetime
 import inspect
 import re
 from typing import List
+import textwrap
 
 import pandas as pd
 import scipy.integrate as integrate
@@ -261,7 +263,18 @@ class BaseMechanisticModel(abc.ABC):
         else:
             result = self.model_results[name]
 
-        return pd.DataFrame(result["solver_output"])
+        if result["solver_id"] == "RK4":
+            return pd.DataFrame(result["solver_output"])
+        elif result["solver_id"] == "solve_ivp":
+            df = pd.DataFrame({
+                "t": result["solver_output"].t
+            })
+
+            column_names = self.extract_return_names()
+
+            for i, col_name in enumerate(column_names):
+                df[col_name] = result["solver_output"].y[i]
+            return df
     
     def precompute_time_points(self):
         """Precompute the expected time points for saving data."""
@@ -273,3 +286,21 @@ class BaseMechanisticModel(abc.ABC):
             expected_times.append(t)
             t += step_size
         return expected_times
+
+    def extract_return_names(self):
+        """Extract variable names from the return statement of the given function."""
+        source = inspect.getsource(self.model)
+        source = textwrap.dedent(source)
+        tree = ast.parse(source)
+        
+        # Find the return statement and extract the names, strip d*dt from name
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Return):
+                if isinstance(node.value, ast.List):
+                    return [
+                        elt.id[1:-2] for elt in node.value.elts
+                        if isinstance(elt, ast.Name)
+                        ]
+                elif isinstance(node.value, ast.Name):
+                    return [node.value.id[1:-2]]
+        return []

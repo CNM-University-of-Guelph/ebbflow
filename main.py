@@ -46,23 +46,15 @@ if __name__ == "__main__":
         outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
     )
 
-
-    # demo.run_model(
-    #     "solve_ivp", t_span=(0, 120), y0=[3.811004739069482, 4.473254058347129],
-    #     t_eval=np.arange(0,121,10), integ_interval=0.001, name="test1"
-    #     )
-    
-
     demo.run_model(
-        "RK4", t_span=(0, 120), y0=[3.811004739069482, 4.473254058347129],
-        t_eval=np.arange(0,121,10), integ_interval=0.001, name="test1"
-        )    
+        "solve_ivp", t_span=(0, 220), y0=[3.811004739069482, 4.473254058347129],
+        t_eval=np.arange(0,221,10), integ_interval=0.001, name="test1"
+        )
         
     elapsed_time = time.time() - start_time
     print(f"First model run completed in {elapsed_time:.4f} seconds.")
 
-    # df = demo.to_dataframe()
-    df = demo.model_results["test1"]["intermediates"]
+    df = demo.to_dataframe()
     print(df)
 
 
@@ -77,7 +69,7 @@ if __name__ == "__main__":
     #     outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
     # )
     # demo.run_model(
-    #     "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=10, 
+    #     "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=np.arange(120,221,10), 
     #     integ_interval=0.01, prev_output=df
     #     )
 
