@@ -1,2 +1,4 @@
 *.txt
 *.pyc
+*.whl
+*.tar.gz
