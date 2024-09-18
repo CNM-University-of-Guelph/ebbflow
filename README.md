@@ -103,3 +103,40 @@ This will print the results at the times based on ```t_eval```.
 11  109.999  3.285745e-20  0.316353  3.285745e-20  0.316353 -1.380013e-20
 12  119.999  4.927164e-22  0.234360  4.927164e-22  0.234360 -2.069409e-22
 ```
+
+When using the "RK4" equation we can continue running our model from a previous time point. This allows us to start a model with a set of constants then moddify these constants at a chosen timepoint. 
+
+```python
+# This will create a list with our 2 state variables, A and B
+new_stateVars =  df.iloc[-1, df.columns.isin(['A', 'B'])].tolist()
+
+# We change the value of kAB
+model.change_constants({"kAB": 0.5})
+
+# Next we run the model with the new initial values and time span
+model.run_model(
+    "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=np.arange(120,221,10), 
+    integ_interval=0.01, prev_output=result
+    )
+
+new_result = model.to_dataframe()
+display(new_result)
+```
+
+As you can see this model run starts at t=120 and goes to the new stop time of 220.
+
+```
+kAB updated to 0.5
+Running Model...
+t	A	B	concA	concB	dAdt
+0	129.98	3.319897e-24	0.173618	3.319897e-24	0.173618	-1.659949e-24
+1	139.98	2.236929e-26	0.128619	2.236929e-26	0.128619	-1.118465e-26
+2	149.98	1.507231e-28	0.095284	1.507231e-28	0.095284	-7.536155e-29
+3	159.98	1.015564e-30	0.070588	1.015564e-30	0.070588	-5.077821e-31
+4	169.98	6.842818e-33	0.052293	6.842818e-33	0.052293	-3.421409e-33
+5	179.98	4.610655e-35	0.038739	4.610655e-35	0.038739	-2.305327e-35
+6	189.98	3.106635e-37	0.028699	3.106635e-37	0.028699	-1.553317e-37
+7	199.98	2.093234e-39	0.021261	2.093234e-39	0.021261	-1.046617e-39
+8	209.98	1.410410e-41	0.015750	1.410410e-41	0.015750	-7.052050e-42
+9	219.98	9.503268e-44	0.011668	9.503268e-44	0.011668	-4.751634e-44
+```
