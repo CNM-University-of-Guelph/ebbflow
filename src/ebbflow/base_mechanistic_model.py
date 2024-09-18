@@ -16,18 +16,24 @@ class BaseMechanisticModel(abc.ABC):
         self.closest_time_point = {}
         self.model_results = {}
         self.result_count = 0
+        self.constant_names = []
         self.__validate_model_method()
 
     def __init_subclass__(cls: Type["BaseMechanisticModel"], **kwargs) -> None:
         """
         Wraps the __init__ method of subclasses to ensure BaseMechanisticModel 
-        is properly initialized.
+        is properly initialized and collects constant names.
         """
         super().__init_subclass__(**kwargs)
         original_init = cls.__init__
 
         def wrapped_init(self, *args, **kwargs):
             BaseMechanisticModel.__init__(self)
+            init_signature = inspect.signature(original_init)
+            self.constant_names = [
+                param.name for param in init_signature.parameters.values()
+                if param.name != "self"
+            ]
             original_init(self, *args, **kwargs)
 
         cls.__init__ = wrapped_init # Replace subclass __init__ with wrapped_init
@@ -380,3 +386,15 @@ class BaseMechanisticModel(abc.ABC):
                 df[col_name] = result["solver_output"].y[i]
             return df
     
+    def change_constants(self, new_constants: Dict[str, float]) -> None:
+        """Change the values of constants defined in the subclass __init__."""
+        for key, value in new_constants.items():
+            if key in self.constant_names:
+                setattr(self, key, value)
+                print(f"{key} updated to {value}")
+            else:
+                raise ValueError(
+                    f"{key} is not a valid constant. "
+                    f"Valid constants are {self.constant_names}"
+                )
+        

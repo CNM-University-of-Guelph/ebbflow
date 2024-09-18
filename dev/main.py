@@ -64,10 +64,7 @@ if __name__ == "__main__":
     print("\nStarting second model run...")
     start_time = time.time()
 
-    demo = DemoModel(
-        kAB=0.5, kBO=0.03, YBAB=1.0, vol=1.0, 
-        outputs=['t', 'A', 'B', 'concA', 'concB', 'dAdt']
-    )
+    demo.change_constants({"kAB": 0.5})
     demo.run_model(
         "RK4", t_span=(120, 220), y0=new_stateVars, t_eval=np.arange(120,221,10), 
         integ_interval=0.01, prev_output=df
