@@ -253,7 +253,7 @@ class BaseMechanisticModel(abc.ABC):
         # Get local variables from self.model()
         current_frame = inspect.currentframe()        
         caller_frame = current_frame.f_back
-        local_vars = caller_frame.f_locals
+        local_vars = caller_frame.f_locals.copy()
         for var in ["self", "state_vars"]:
             if var in local_vars:
                 del local_vars[var]
