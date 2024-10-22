@@ -218,7 +218,13 @@ class BaseMechanisticModel(abc.ABC):
         start_time, end_time = self.t_span
         expected_times = []
         t = start_time
-        step_size = int(self.t_eval[1] - self.t_eval[0])
+        step_size = self.t_eval[1] - self.t_eval[0]
+        
+        if step_size == 0:
+            raise ValueError(
+                "Step size cannot be 0. Check t_eval values for proper incerements"
+                
+                )
         while t <= end_time:
             expected_times.append(t)
             t += step_size
