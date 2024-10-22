@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ebbflow"
-version = "0.0.4"
+version = "0.0.5"
 description = "A template class for developing mechanistic models"
 authors = ["BFieguth <bfieguth@uoguelph.ca>"]
 license = "MIT"
