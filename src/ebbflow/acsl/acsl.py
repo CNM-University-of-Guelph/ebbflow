@@ -11,6 +11,7 @@ class ACSL():
     def __init__(self):
         self.stop_flag = False
         self._section_mapping = {}
+        self._previous_section_scope = ()
         self._constant_manager = ConstantManager()
         self._validate_sections()
         self._create_section_mapping()
@@ -98,15 +99,55 @@ class ACSL():
         finally:
             self._constant_manager._set_collection_mode(False)
 
+        if "INITIAL" in self._section_mapping:
+            self._section_mapping["INITIAL"]()
+            self._constant_manager._set_collection_mode(True)
+            self._constant_manager.collect_initial_constants(
+                self._previous_section_scope
+            )
+            self._constant_manager._set_collection_mode(False)
+
     def set_constant(self, name: str, value: Union[int, float, bool]):
         self._constant_manager.set_constant(name, value)
+
+    def end(self):
+        """
+        Capture the local scope of the calling section. 
+
+        This is required at the end of each section method.
+        """
+        frame = inspect.currentframe().f_back
+
+        try:
+            func_name = frame.f_code.co_name
+            section_name = None
+            for name, method in self._section_mapping.items():
+                if method.__name__ == func_name:
+                    section_name = name
+                    break
+            
+            if section_name:
+                local_vars = frame.f_locals.copy()
+                filtered_vars = {
+                    name: value for name, value in local_vars.items()
+                    if not name.startswith('_') and
+                    not callable(value) and
+                    name != "self"
+                }
+
+                self._previous_section_scope = (section_name, filtered_vars)
+                # print(f"DEBUG: Ending {section_name} section")
+                # print(f"DEBUG: Captured scope: {self._previous_section_scope}")
+                                
+        finally:
+            del frame
 
     def run(self):
         self._collect_constants()
 
         if "INITIAL" in self._section_mapping:
-            self._section_mapping["INITIAL"]()
-            # pass
+            # self._section_mapping["INITIAL"]()
+            pass # NOTE this section is now run during self._collect_constants()
         if "DYNAMIC" in self._section_mapping:
             pass
 
