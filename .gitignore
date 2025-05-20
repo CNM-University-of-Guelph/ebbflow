@@ -2,3 +2,5 @@
 *.pyc
 *.whl
 *.tar.gz
+acslX Models
+*.md
