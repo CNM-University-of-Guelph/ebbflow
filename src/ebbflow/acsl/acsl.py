@@ -4,19 +4,22 @@ import textwrap
 from types import MethodType
 from typing import Callable, Union
 
-from ebbflow.acsl.constant_manager import ConstantManager
-from ebbflow.acsl.constant_collector import ConstantCollector
-from ebbflow.acsl.sort import AcslSort
+from ebbflow.acsl.state_managers.constant_manager import ConstantManager
+from ebbflow.acsl.visitors.constant_collector import ConstantCollector
+from ebbflow.acsl.visitors.statevar_collector import StatevarCollector
+from ebbflow.acsl.sorting.sort import AcslSort
 
 class ACSL():
     """Implements the main program loop for ACSL"""
     def __init__(self):
         self.stop_flag = False
         self._section_mapping = {}
+        self.state_vars = {}
         self._previous_section_scope = ()
         self._constant_manager = ConstantManager()
         self._validate_sections()
         self._create_section_mapping()
+        self._sections_to_sort = self._find_sections_to_sort()
 
     def _validate_sections(self):
         """
@@ -52,6 +55,13 @@ class ACSL():
             if hasattr(method, "_acsl_section"):
                 self._section_mapping[method._acsl_section] = method
 
+    def _find_sections_to_sort(self):
+        sections_to_sort = []
+        for section, method in self._section_mapping.items():
+            if method._sort:
+                sections_to_sort.append(section)
+        return sections_to_sort
+
     def _collect_constants(self):
         """
         Parse each section to collect constants defined with set_constants.
@@ -83,6 +93,25 @@ class ACSL():
                 self._previous_section_scope
             )
             self._constant_manager._set_collection_mode(False)
+
+    def _collect_statevars(self):
+        """
+        Parse each section to collect state variables defined with set_statevars.
+        """
+        # NOTE self.integ can only be used in sorted sections
+        for section in self._sections_to_sort:
+            try:
+                source = inspect.getsource(self._section_mapping[section])
+                source_dedent = textwrap.dedent(source)
+                tree = ast.parse(source_dedent)
+                collector = StatevarCollector()
+                collector.visit(tree)
+
+            except Exception as e:
+                print(
+                    f"Warning: Error collecting state variables from {section} section: {e}"
+                )
+        return collector.found_integ_calls
 
     def set_constant(self, name: str, value: Union[int, float, bool]):
         self._constant_manager.set_constant(name, value)
@@ -151,15 +180,22 @@ class ACSL():
 
     def run(self):
         self._collect_constants()
-        constants = self._constant_manager.constants
-        if "INITIAL" in self._section_mapping:
-            # self._section_mapping["INITIAL"]()
-            pass # NOTE this section is now run during self._collect_constants()
-        if "DERIVATIVE" in self._section_mapping:
-            self.sort(self._section_mapping["DERIVATIVE"])
+        self.state_vars = self._collect_statevars()
+        for section in self._sections_to_sort:
+            self.sort(self._section_mapping[section])
+        
+        
+        # if "INITIAL" in self._section_mapping:
+        #     # self._section_mapping["INITIAL"]()
+        #     pass
+        
+        # if "DERIVATIVE" in self._section_mapping:
+        #     self.sort(self._section_mapping["DERIVATIVE"])
             # TODO for initial time step need to provide the state variables w/ initial value
+            # constants = self._constant_manager.constants
             # self._section_mapping["DERIVATIVE"](**constants)
-        if "DYNAMIC" in self._section_mapping:
-            pass
+        
+        # if "DYNAMIC" in self._section_mapping:
+        #     pass
 
         print(f"Finished running {self.__class__.__name__}")

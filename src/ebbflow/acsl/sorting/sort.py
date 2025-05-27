@@ -183,7 +183,12 @@ class FunctionParser:
 
 class AcslSort:
     @classmethod
-    def sort(cls, function_tree: ast.Module, constant_names: list[str]):
+    def sort(
+        cls,
+        function_tree: ast.Module,
+        constant_names: list[str],
+        save_function: bool = False
+    ):
         """Implement ACSL Sorting Algorithm"""
         parser = FunctionParser(constant_names)
         parser.collect_variables(function_tree)
@@ -201,9 +206,11 @@ class AcslSort:
         sorted_function = cls._create_executable_function(
             function_tree, calculation_order, parser.expr_map
         )
-        # cls.save_sorted_function(
-        #     function_tree, calculation_order, parser.expr_map, "sorted_acsl.py"
-        # )
+        if save_function:
+            cls.save_sorted_function(
+                function_tree, calculation_order, parser.expr_map,
+                f"sorted_{function_tree.body[0].name}.py"
+            )
 
         # return (
         #     parser.variable_map, 
