@@ -1,10 +1,12 @@
 import ast
 import inspect
 import textwrap
+from types import MethodType
 from typing import Callable, Union
 
 from ebbflow.acsl.constant_manager import ConstantManager
 from ebbflow.acsl.constant_collector import ConstantCollector
+from ebbflow.acsl.sort import AcslSort
 
 class ACSL():
     """Implements the main program loop for ACSL"""
@@ -15,31 +17,6 @@ class ACSL():
         self._constant_manager = ConstantManager()
         self._validate_sections()
         self._create_section_mapping()
-
-    @staticmethod
-    def INITIAL(func: Callable) -> Callable:
-        func._acsl_section = 'INITIAL'
-        return func
-
-    @staticmethod
-    def DYNAMIC(func: Callable) -> Callable:
-        func._acsl_section = 'DYNAMIC'
-        return func
-
-    @staticmethod
-    def DERIVATIVE(func: Callable) -> Callable:
-        func._acsl_section = 'DERIVATIVE'
-        return func
-
-    @staticmethod
-    def DISCRETE(func: Callable) -> Callable:
-        func._acsl_section = 'DISCRETE'
-        return func
-
-    @staticmethod
-    def TERMINAL(func: Callable) -> Callable:
-        func._acsl_section = 'TERMINAL'
-        return func
 
     def _validate_sections(self):
         """
@@ -110,6 +87,36 @@ class ACSL():
     def set_constant(self, name: str, value: Union[int, float, bool]):
         self._constant_manager.set_constant(name, value)
 
+    def integ(self, deriv, ic):
+        """Implement integration here"""
+        return ic
+
+    def sort(self, func: Callable):
+        """Sort the function so that variables are in calculation order."""
+        try:
+            source = inspect.getsource(func)
+            source_dedent = textwrap.dedent(source)
+            tree = ast.parse(source_dedent)
+            # variable_map, state_variables, expr_map, calculation_order, sorted_func = AcslSort.sort(
+            sorted_func = AcslSort.sort(
+                tree, self._constant_manager.constants.keys()
+            )
+            bound_sorted_func = MethodType(sorted_func, self)
+            self._section_mapping[func._acsl_section] = bound_sorted_func
+            # print("Variable map:")
+            # for key, value in variable_map.items():
+            #     print(f"{key}: {value}")
+            # print(f"\nState variables: {state_variables}")
+            # print(f"\nExpr map:")
+            # for key, value in expr_map.items():
+            #     print(f"{key}: {value}")
+            # print(f"\nCalculation order:")
+            # for key, value in calculation_order.items():
+            #     print(f"{key}: {value}")
+
+        except Exception as e:
+            print(f"Warning: Error sorting function: {e}")
+
     def end(self):
         """
         Capture the local scope of the calling section. 
@@ -144,12 +151,15 @@ class ACSL():
 
     def run(self):
         self._collect_constants()
-
+        constants = self._constant_manager.constants
         if "INITIAL" in self._section_mapping:
             # self._section_mapping["INITIAL"]()
             pass # NOTE this section is now run during self._collect_constants()
+        if "DERIVATIVE" in self._section_mapping:
+            self.sort(self._section_mapping["DERIVATIVE"])
+            # TODO for initial time step need to provide the state variables w/ initial value
+            # self._section_mapping["DERIVATIVE"](**constants)
         if "DYNAMIC" in self._section_mapping:
             pass
-
 
         print(f"Finished running {self.__class__.__name__}")
