@@ -1,9 +1,3 @@
-# Only sort one section at a time, passed in as a function
-# Return the sorted function callable
-# State variables are not flagged
-# NOTE How do state variables get set?
-    # Dynamic or user defined?
-#
 # Sort Algorithm
 # --- First Pass ---
 # - Examine each statement
@@ -20,15 +14,6 @@
 #       - Set flag for output to True
 #   - When a statement is added to output function reevaluate the list
 #   - 
-
-
-# TODO:
-# - Filter out set_constant() calls when handling EXPR nodes
-# - Need to keep self.end() as final call
-# - Return an executable function
-#     - Need to collect code associated with each line and create new function
-#     - This is what sort returns
-# Implement the sorting algorithm when selecting the nodes to keep
 
 import ast
 from collections import defaultdict, OrderedDict
@@ -169,7 +154,7 @@ class FunctionParser:
         elif isinstance(node.value.func, ast.Attribute):
             func_name = node.value.func.attr
 
-        if func_name == "set_constant":
+        if func_name == "constant":
             return
         elif func_name == "end":
             self.expr_map[func_name] = {
@@ -187,7 +172,6 @@ class AcslSort:
         cls,
         function_tree: ast.Module,
         constant_names: list[str],
-        save_function: bool = False
     ):
         """Implement ACSL Sorting Algorithm"""
         parser = FunctionParser(constant_names)
@@ -202,24 +186,10 @@ class AcslSort:
             )
             variables_to_sort.remove(next_var)
             calculation_order[next_var] = parser.variable_map[next_var]
-
-        sorted_function = cls._create_executable_function(
+        sorted_tree = cls._build_sorted_ast(
             function_tree, calculation_order, parser.expr_map
         )
-        if save_function:
-            cls.save_sorted_function(
-                function_tree, calculation_order, parser.expr_map,
-                f"sorted_{function_tree.body[0].name}.py"
-            )
-
-        # return (
-        #     parser.variable_map, 
-        #     parser.state_variables, 
-        #     parser.expr_map, 
-        #     calculation_order,
-        #     sorted_function
-        # )
-        return sorted_function
+        return sorted_tree
 
     @classmethod
     def _pick_next_variable(cls, variables_to_sort, calculated_variables, variable_map):
@@ -243,69 +213,25 @@ class AcslSort:
     @classmethod
     def _build_sorted_ast(cls, function_tree: ast.Module, calculation_order: OrderedDict, expr_map: dict):
         """Build the AST for the sorted function."""
-        # Get the original function definition
         original_func = function_tree.body[0]
-        
-        # Create new function with sorted statements
         new_func = ast.FunctionDef(
             name=original_func.name,
             args=ast.arguments(
                 posonlyargs=[],
-                args=[ast.arg(arg='self', annotation=None)],  # Keep self parameter
+                args=[ast.arg(arg='self', annotation=None)],
                 vararg=None,
                 kwonlyargs=[],
                 kw_defaults=[],
-                kwarg=ast.arg(arg='kwargs', annotation=None),  # Add **kwargs
                 defaults=[]
             ),
             body=[],
             decorator_list=[],
             returns=None
         )
-        
-        # Add sorted assignment statements
         for var_name, info in calculation_order.items():
             new_func.body.append(info["stmt"])
-        
-        # Add expr statements (like self.end())
         for expr_name, info in expr_map.items():
             new_func.body.append(info["stmt"])
-        
-        # Create new module with the sorted function
         new_module = ast.Module(body=[new_func], type_ignores=[])
-
         ast.fix_missing_locations(new_module)
         return new_module
-
-    @classmethod
-    def _create_executable_function(cls, function_tree: ast.Module, calculation_order: OrderedDict, expr_map: dict):
-        """Create an executable function from the sorted calculation order."""
-        new_module = cls._build_sorted_ast(function_tree, calculation_order, expr_map)
-        
-        # Compile and return executable function
-        # TODO give a meaningful name for error codes, not <sorted_acsl>
-        compiled = compile(new_module, '<sorted_acsl>', 'exec')
-        namespace = {}
-        exec(compiled, namespace)
-        
-        # Get the function name from the original function
-        original_func = function_tree.body[0]
-        return namespace[original_func.name]
-
-    @classmethod
-    def save_sorted_function(cls, function_tree: ast.Module, calculation_order: OrderedDict, 
-                           expr_map: dict, filename: str):
-        """Save the sorted function code to a file."""
-        # Reuse the AST building logic
-        new_module = cls._build_sorted_ast(function_tree, calculation_order, expr_map)
-        
-        # Convert to source code and save
-        sorted_code = ast.unparse(new_module)
-        
-        with open(filename, 'w') as f:
-            f.write("# Sorted ACSL function\n")
-            f.write("# Generated automatically by AcslSort\n\n")
-            f.write(sorted_code)
-        
-        print(f"Sorted function saved to {filename}")
-        return sorted_code

@@ -1,19 +1,17 @@
 import ast
 
 class ConstantCollector(ast.NodeVisitor):
-    def __init__(self, constant_manager):
-        self.constant_manager = constant_manager
+    def __init__(self):
         self.found_constant_calls = []
 
     def visit_Call(self, node):
         """
         Visit a Call node in the AST.
         """
-        # Check if the node is calling self.set_constant
         if (isinstance(node.func, ast.Attribute) and
             isinstance(node.func.value, ast.Name) and
             node.func.value.id == "self" and
-            node.func.attr == "set_constant"
+            node.func.attr == "constant"
             ):
 
             if len(node.args) == 2:

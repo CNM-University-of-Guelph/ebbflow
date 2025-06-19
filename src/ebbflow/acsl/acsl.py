@@ -1,25 +1,18 @@
+"""Subclass of AcslLib that initiates the build process with by overriding the run() method"""
 import ast
 import inspect
 import textwrap
-from types import MethodType
-from typing import Callable, Union
 
-from ebbflow.acsl.state_managers.constant_manager import ConstantManager
-from ebbflow.acsl.visitors.constant_collector import ConstantCollector
-from ebbflow.acsl.visitors.statevar_collector import StatevarCollector
-from ebbflow.acsl.sorting.sort import AcslSort
+from ebbflow.acsl.acsl_lib import AcslLib
+from ebbflow.acsl.build.acsl_build import AcslBuild
 
-class ACSL():
-    """Implements the main program loop for ACSL"""
+class Acsl(AcslLib):
+    """Subclass of AcslLib that initiates the build process with by overriding the run() method"""
     def __init__(self):
-        self.stop_flag = False
-        self._section_mapping = {}
-        self.state_vars = {}
-        self._previous_section_scope = ()
-        self._constant_manager = ConstantManager()
+        super().__init__()
+        self.section_mapping = {}
         self._validate_sections()
         self._create_section_mapping()
-        self._sections_to_sort = self._find_sections_to_sort()
 
     def _validate_sections(self):
         """
@@ -53,149 +46,39 @@ class ACSL():
         """        
         for _, method in inspect.getmembers(self, inspect.ismethod):
             if hasattr(method, "_acsl_section"):
-                self._section_mapping[method._acsl_section] = method
+                self.section_mapping[method._acsl_section] = method
 
-    def _find_sections_to_sort(self):
-        sections_to_sort = []
-        for section, method in self._section_mapping.items():
-            if method._sort:
-                sections_to_sort.append(section)
-        return sections_to_sort
+    def run(self, TSTP, CINT=None):
+        def _collect_metadata(section_method):
+            metadata = {
+                '_acsl_section': getattr(
+                    section_method, '_acsl_section', None
+                ),
+                '_collect_constants': getattr(
+                    section_method, '_collect_constants', False
+                ),
+                '_collect_statevars': getattr(
+                    section_method, '_collect_statevars', False
+                ),
+                '_sort': getattr(section_method, '_sort', False),
+            }
+            return metadata
+        initial_scope = (None, {})
+        section_trees = {}
 
-    def _collect_constants(self):
-        """
-        Parse each section to collect constants defined with set_constants.
-        """
-        try:
-            self._constant_manager._set_collection_mode(True)
-            for section_name, method in self._section_mapping.items():
-                try:
-                    source = inspect.getsource(method)
-                    source_dedent = textwrap.dedent(source)
-                    tree = ast.parse(source_dedent)
-                    collector = ConstantCollector(self._constant_manager)
-                    collector.visit(tree)
-
-                    for const_name, const_value in collector.found_constant_calls:
-                        self.set_constant(const_name, const_value)
-
-                except Exception as e:
-                    print(
-                        f"Warning: Error collecting constants from {section_name} section: {e}"
-                    )
-        finally:
-            self._constant_manager._set_collection_mode(False)
-
-        if "INITIAL" in self._section_mapping:
-            self._section_mapping["INITIAL"]()
-            self._constant_manager._set_collection_mode(True)
-            self._constant_manager.collect_initial_constants(
-                self._previous_section_scope
-            )
-            self._constant_manager._set_collection_mode(False)
-
-    def _collect_statevars(self):
-        """
-        Parse each section to collect state variables defined with set_statevars.
-        """
-        # NOTE self.integ can only be used in sorted sections
-        for section in self._sections_to_sort:
-            try:
-                source = inspect.getsource(self._section_mapping[section])
-                source_dedent = textwrap.dedent(source)
-                tree = ast.parse(source_dedent)
-                collector = StatevarCollector()
-                collector.visit(tree)
-
-            except Exception as e:
-                print(
-                    f"Warning: Error collecting state variables from {section} section: {e}"
-                )
-        return collector.found_integ_calls
-
-    def set_constant(self, name: str, value: Union[int, float, bool]):
-        self._constant_manager.set_constant(name, value)
-
-    def integ(self, deriv, ic):
-        """Implement integration here"""
-        return ic
-
-    def sort(self, func: Callable):
-        """Sort the function so that variables are in calculation order."""
-        try:
-            source = inspect.getsource(func)
+        for section_name, section_method in self.section_mapping.items():
+            metadata = _collect_metadata(section_method)
+            source = inspect.getsource(section_method)
             source_dedent = textwrap.dedent(source)
             tree = ast.parse(source_dedent)
-            # variable_map, state_variables, expr_map, calculation_order, sorted_func = AcslSort.sort(
-            sorted_func = AcslSort.sort(
-                tree, self._constant_manager.constants.keys()
-            )
-            bound_sorted_func = MethodType(sorted_func, self)
-            self._section_mapping[func._acsl_section] = bound_sorted_func
-            # print("Variable map:")
-            # for key, value in variable_map.items():
-            #     print(f"{key}: {value}")
-            # print(f"\nState variables: {state_variables}")
-            # print(f"\nExpr map:")
-            # for key, value in expr_map.items():
-            #     print(f"{key}: {value}")
-            # print(f"\nCalculation order:")
-            # for key, value in calculation_order.items():
-            #     print(f"{key}: {value}")
+            section_trees[section_name] = (tree, metadata)
 
-        except Exception as e:
-            print(f"Warning: Error sorting function: {e}")
+        if "INITIAL" in self.section_mapping:
+            self.section_mapping["INITIAL"]()
+            initial_scope = self.previous_section_scope
 
-    def end(self):
-        """
-        Capture the local scope of the calling section. 
-
-        This is required at the end of each section method.
-        """
-        frame = inspect.currentframe().f_back
-
-        try:
-            func_name = frame.f_code.co_name
-            section_name = None
-            for name, method in self._section_mapping.items():
-                if method.__name__ == func_name:
-                    section_name = name
-                    break
-            
-            if section_name:
-                local_vars = frame.f_locals.copy()
-                filtered_vars = {
-                    name: value for name, value in local_vars.items()
-                    if not name.startswith('_') and
-                    not callable(value) and
-                    name != "self"
-                }
-
-                self._previous_section_scope = (section_name, filtered_vars)
-                # print(f"DEBUG: Ending {section_name} section")
-                # print(f"DEBUG: Captured scope: {self._previous_section_scope}")
-                                
-        finally:
-            del frame
-
-    def run(self):
-        self._collect_constants()
-        self.state_vars = self._collect_statevars()
-        for section in self._sections_to_sort:
-            self.sort(self._section_mapping[section])
-        
-        
-        # if "INITIAL" in self._section_mapping:
-        #     # self._section_mapping["INITIAL"]()
-        #     pass
-        
-        # if "DERIVATIVE" in self._section_mapping:
-        #     self.sort(self._section_mapping["DERIVATIVE"])
-            # TODO for initial time step need to provide the state variables w/ initial value
-            # constants = self._constant_manager.constants
-            # self._section_mapping["DERIVATIVE"](**constants)
-        
-        # if "DYNAMIC" in self._section_mapping:
-        #     pass
-
-        print(f"Finished running {self.__class__.__name__}")
+        acsl_build = AcslBuild(section_trees, initial_scope, TSTP, CINT)
+        acsl_run = acsl_build.build()
+        return acsl_build, acsl_run # NOTE: for debugging
+        # 4. Take output of AcslBuild.build() (AcslRun instance) and exercise it
+        # 5. Return the output to the user

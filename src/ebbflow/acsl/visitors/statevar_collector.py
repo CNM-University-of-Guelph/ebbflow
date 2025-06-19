@@ -2,7 +2,7 @@ import ast
 
 class StatevarCollector(ast.NodeVisitor):
     def __init__(self):
-        self.found_integ_calls = {}
+        self.integ_calls = {}
 
     def visit_Assign(self, node):
         if (
@@ -11,7 +11,7 @@ class StatevarCollector(ast.NodeVisitor):
             node.value.func.attr == "integ"
             ):
             if len(node.targets) == 1:
-                self.found_integ_calls[node.targets[0].id] = node.value.args[1].id
+                self.integ_calls[node.targets[0].id] = node.value.args[1].id
 
             else:
                 raise ValueError(
