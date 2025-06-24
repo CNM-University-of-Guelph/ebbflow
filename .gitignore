@@ -2,3 +2,9 @@
 *.pyc
 *.whl
 *.tar.gz
+acslX Models
+*.md
+dev/
+docs/build/
+test_*
+*.csv

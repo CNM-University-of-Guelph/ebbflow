@@ -12,6 +12,17 @@ numpy = "^2.1.1"
 pandas = "^2.2.2"
 scipy = "^1.14.1"
 
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "^7.2.6"
+sphinx-rtd-theme = "^2.0.0"
+pydata-sphinx-theme = "^0.15.2"
+sphinx-autodoc-typehints = "^1.25.2"
+sphinx-copybutton = "^0.5.2"
+numpydoc = "^1.6.0"
+myst-parser = "^2.0.0"
 
 [build-system]
 requires = ["poetry-core"]
