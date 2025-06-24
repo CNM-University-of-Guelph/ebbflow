@@ -93,6 +93,9 @@ class AcslBuild:
             self.acsl_sections[section_name].remove_self_calls()
             self.acsl_sections[section_name].create_executable()
 
+            # NOTE: save for debugging
+            self.acsl_sections[section_name].save(f"./dev/acsl_sections/{section_name}.py")
+
         return AcslRun(
             TSTP=self.TSTP,
             CINT=self.CINT,

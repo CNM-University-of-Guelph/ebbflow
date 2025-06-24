@@ -5,6 +5,7 @@ from typing import Dict
 class SignatureModifier(ast.NodeVisitor):
     def __init__(self, constants: Dict, statevars: Dict):
         self.new_kwargs = [
+            "t",
             *list(constants.keys()),
             *list(statevars.keys())
         ]
