@@ -13,3 +13,5 @@ Rules for INITIAL section
 - All configuration values are expected to be in the DYNAMIC section
 - Arguments provided to run() will overide configuration values set as constants
     - Ex. CINT
+- time is always the variable "t"
+    - t is always available to functions

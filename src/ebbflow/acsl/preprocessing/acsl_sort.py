@@ -46,7 +46,7 @@ class FunctionParser:
 
     def filter_variable_map(self):
         """Remove constants and state variables from the variable map."""
-        initial_values = self.state_variables + self.constant_names
+        initial_values = self.state_variables + self.constant_names + ["t"]
 
         for var_name, info in self.variable_map.items():
             info["dependencies"] = [

@@ -60,6 +60,7 @@ class AcslRun:
         initial_statevars = {
             key: self.constants[value] for key, value in self.statevars.items()
         }
+        initial_statevars["t"] = self.t
         return {
             **self.constants,
             **initial_statevars
@@ -72,6 +73,7 @@ class AcslRun:
         for statevar, initial_value in self.statevars.items():
             new_statevars[initial_value] = self.derivative.previous_section_scope[1][statevar]
         return {
+            "t": self.t,
             **self.constants,
             **new_statevars
         }
