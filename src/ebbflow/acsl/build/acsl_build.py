@@ -20,7 +20,8 @@ class AcslBuild:
             section_trees: Dict[str, Tuple[ast.AST, Dict]],
             initial_scope: Tuple[str, Dict],
             TSTP: float,
-            CINT: int = None
+            CINT: int = None,
+            report: list = None
         ):
         self.section_trees = section_trees
         self.constants = {}
@@ -38,10 +39,9 @@ class AcslBuild:
         self.sorter = AcslSort()
         self.integration_settings_collector = IntegrationSettingsCollector()
         self.integ_function_creator = IntegFunctionCreator()
+        self.variables_to_report = report
 
     def build(self):
-        integration_functions = {}
-
         # Collect constants
         for section_name, tree, _ in self._iterate("_collect_constants"):
             self.constant_manager.collect(section_name, tree)
@@ -95,12 +95,14 @@ class AcslBuild:
 
         return AcslRun(
             TSTP=self.TSTP,
+            CINT=self.CINT,
+            variables_to_report=self.variables_to_report,
             constants=self.constants,
             statevars=self.statevars,
             dynamic=self.acsl_sections.get("DYNAMIC"),
             derivative=self.acsl_sections.get("DERIVATIVE"),
             discrete=self.acsl_sections.get("DISCRETE"),
-            terminal=self.acsl_sections.get("TERMINAL")
+            terminal=self.acsl_sections.get("TERMINAL"),
         )
 
     def _iterate(self, filter: str):

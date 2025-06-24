@@ -48,7 +48,7 @@ class Acsl(AcslLib):
             if hasattr(method, "_acsl_section"):
                 self.section_mapping[method._acsl_section] = method
 
-    def run(self, TSTP, CINT=None):
+    def run(self, TSTP, CINT=None, report: list=None):
         def _collect_metadata(section_method):
             metadata = {
                 '_acsl_section': getattr(
@@ -77,8 +77,7 @@ class Acsl(AcslLib):
             self.section_mapping["INITIAL"]()
             initial_scope = self.previous_section_scope
 
-        acsl_build = AcslBuild(section_trees, initial_scope, TSTP, CINT)
+        acsl_build = AcslBuild(section_trees, initial_scope, TSTP, CINT, report)
         acsl_run = acsl_build.build()
-        return acsl_build, acsl_run # NOTE: for debugging
-        # 4. Take output of AcslBuild.build() (AcslRun instance) and exercise it
-        # 5. Return the output to the user
+        results = acsl_run.run()
+        return results
