@@ -6,7 +6,7 @@ from ebbflow.acsl.visitors.constant_collector import ConstantCollector
 class ConstantManager:
     def __init__(self, initial_scope: Tuple[str, Dict]):
         self.constants = {}
-        self.valid_types = (int, float, bool)
+        self.valid_types = (int, float, bool, list)
         self.collect_initial_constants(initial_scope)
 
     def set_constant(self, name, value):
@@ -16,7 +16,7 @@ class ConstantManager:
             )
         elif not isinstance(value, self.valid_types):
             raise TypeError(
-                f"{name} has invalid type {type(value)}. Valid types are int, float, and bool"
+                f"{name} has invalid type {type(value)}. Valid types are int, float, bool, and list"
             )
         elif name in self.constants.keys():
             raise ValueError(f"Constant {name} is already defined")

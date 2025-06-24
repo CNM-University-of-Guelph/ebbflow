@@ -21,14 +21,14 @@ class AcslLib:
         self.integration_manager = integration_manager
         self.IALG = integration_manager.IALG if integration_manager else 5
 
-    def constant(self, name: str, value: Union[int, float, bool]):
+    def constant(self, name: str, value: Union[int, float, bool, list]):
         if not isinstance(name, str):
             raise ValueError(
                 f"Constant name must be a string, got {type(name).__name__}"
             )
-        if not isinstance(value, (int, float, bool)):
+        if not isinstance(value, (int, float, bool, list)):
             raise ValueError(
-                f"Constant value must be an int, float, or bool, got {type(value).__name__}"
+                f"Constant value must be an int, float, bool, or list, got {type(value).__name__}"
             )
 
     def integ(self, deriv, ic):
