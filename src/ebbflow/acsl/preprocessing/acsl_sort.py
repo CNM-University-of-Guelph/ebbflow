@@ -1,20 +1,3 @@
-# Sort Algorithm
-# --- First Pass ---
-# - Examine each statement
-#   - Set the output variable as calculated
-#   - Create a list of the input variables associated with output variable
-#   - Set the calculated flag as False for output
-#  
-#   NOTE: Setting flag False means that varaible not calculated
-#   - All constants can be set to True
-#
-# --- Second Pass ---
-# - For each statement in list (from first pass)
-#   - If none of input are False add statement to output function
-#       - Set flag for output to True
-#   - When a statement is added to output function reevaluate the list
-#   - 
-
 import ast
 from collections import defaultdict, OrderedDict
 
@@ -303,10 +286,35 @@ class AcslSort:
             decorator_list=[],
             returns=None
         )
+        procedural_functions = []
+        
         for var_name, info in cls.calculation_order.items():
-            new_func.body.append(info["stmt"])
+            if info["type"] == "assign":
+                new_func.body.append(info["stmt"])
+            elif info["type"] == "procedural":
+                procedural_functions.append(info["stmt"])
+                new_func.body.append(cls._create_procedural_call(var_name, info["stmt"]))
+            else:
+                raise ValueError(f"Unknown type: {info['type']}")
+
         for expr_name, info in expr_map.items():
             new_func.body.append(info["stmt"])
-        new_module = ast.Module(body=[new_func], type_ignores=[])
+
+        module_body = procedural_functions + [new_func]
+        new_module = ast.Module(body=module_body, type_ignores=[])
         ast.fix_missing_locations(new_module)
         return new_module
+
+    @classmethod
+    def _create_procedural_call(cls, var_name, stmt):
+        """Create a call to a procedural function."""
+        args = [ast.Name(id=arg.arg, ctx=ast.Load()) for arg in stmt.args.args]
+        function_call = ast.Call(
+            func=ast.Name(id=stmt.name, ctx=ast.Load()),
+            args=args,
+            keywords=[]
+        )
+        return ast.Assign(
+            targets=[ast.Name(id=var_name, ctx=ast.Store())],
+            value=function_call
+        )
