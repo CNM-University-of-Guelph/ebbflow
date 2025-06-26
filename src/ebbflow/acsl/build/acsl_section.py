@@ -17,12 +17,31 @@ class AcslSection(AcslLib):
         ):
         super().__init__(integration_manager=integration_manager)
         self.section_name = name
-        self.tree = tree
+        self.procedural_functions = []
+        self.tree = self._extract_procedural_functions(tree)
         self.executable_func = None
         self.methods_to_remove = {"constant"}
 
     def __repr__(self):
         return f"AcslSection(name={self.section_name})"
+
+    def _extract_procedural_functions(self, tree: ast.Module):
+        main_func = None
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef):
+                is_procedural = any(
+                    isinstance(decorator, ast.Name) and decorator.id == "PROCEDURAL"
+                    for decorator in node.decorator_list
+                )
+                if is_procedural:
+                    remover = DecoratorRemover()
+                    remover.visit(node)
+                    self.procedural_functions.append(remover.new_tree)
+                else:
+                    main_func = node
+        if main_func is None:
+            raise ValueError("No main function found in module")
+        return main_func
 
     def modify_signature(self, constants: Dict, statevars: Dict):
         # NOTE: assumes that constants and statevars are provided to all sections
@@ -44,7 +63,8 @@ class AcslSection(AcslLib):
         self.tree = remover.new_tree
 
     def create_executable(self):
-        module = ast.Module(body=[self.tree], type_ignores=[])
+        module_body = self.procedural_functions + [self.tree]
+        module = ast.Module(body=module_body, type_ignores=[])
         ast.fix_missing_locations(module)
         compiled = compile(module, f"<{self.section_name}>", "exec")
         namespace = {}
@@ -52,12 +72,14 @@ class AcslSection(AcslLib):
 
         func_name = self.tree.name if isinstance(
             self.tree, ast.FunctionDef
-        ) else module.body[0].name
+        ) else module.body[-1].name
 
         self.executable_func = namespace[func_name]
 
     def save(self, filename: str):
-        code = ast.unparse(self.tree)
+        module_body = self.procedural_functions + [self.tree]
+        module = ast.Module(body=module_body, type_ignores=[])
+        code = ast.unparse(module)
         with open(filename, 'w') as f:
             f.write(f"# Code for section {self.section_name}\n")
             f.write(f"# Generated automatically by AcslSection\n\n")
