@@ -3,7 +3,7 @@ import ast
 class IntegrationSettingsCollector(ast.NodeVisitor):
     def __init__(self):
         self.settings = {}
-        self.settings_names = ['IALG', 'NSTP', 'MAXT']
+        self.settings_names = ['IALG', 'NSTP', 'MAXT', 'MINT', 'CINT']
 
     def visit_Assign(self, node):
         if isinstance(node.targets[0], ast.Tuple) and len(node.targets[0].elts) > 1:
