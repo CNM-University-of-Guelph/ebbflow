@@ -5,7 +5,9 @@ from ebbflow.acsl.visitors.constant_collector import ConstantCollector
 
 class ConstantManager:
     def __init__(self, initial_scope: Tuple[str, Dict]):
-        self.constants = {}
+        self.constants = {
+            "t": 0
+        }
         self.valid_types = (int, float, bool, list)
         self.collect_initial_constants(initial_scope)
 
