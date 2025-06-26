@@ -53,3 +53,8 @@ def SORT(func: Callable) -> Callable:
     func._sort = True
     func._collect_statevars = True
     return func
+
+
+def PROCEDURAL(func: Callable) -> Callable:
+    func._procedural = True
+    return func
