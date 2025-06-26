@@ -35,13 +35,20 @@ class FunctionParser:
 
     def collect_variables(self, function_tree: ast.Module):
         """Collect the calcualted variables and their dependencies."""
-        for node in ast.walk(function_tree):
-            if isinstance(node, ast.Assign):
+        main_function = function_tree.body[0]
+
+        for node in main_function.body:
+            if isinstance(node, ast.FunctionDef):
+                decorators = [decorator.id for decorator in node.decorator_list]
+                if "PROCEDURAL" in decorators:
+                    self._collect_procedural(node)
+            elif isinstance(node, ast.Assign):
                 self._collect_assign(node)
             elif isinstance(node, ast.AnnAssign):
                 self._collect_annassign(node)
             elif isinstance(node, ast.Expr):
                 self._collect_expr(node)
+
         self.filter_variable_map()
 
     def filter_variable_map(self):
@@ -70,6 +77,12 @@ class FunctionParser:
             parameters = self._collect_binop(node.value)
         elif isinstance(node.value, ast.Call):
             parameters, is_state_var = self._collect_call(node.value)
+        elif isinstance(node.value, ast.UnaryOp):
+            parameters = self._collect_unaryop(node.value)
+        elif isinstance(node.value, ast.Name):
+            parameters = [node.value.id]
+        elif isinstance(node.value, ast.Subscript):
+            parameters = self._collect_subscript(node.value)
         else:
             raise TypeError(f"No method for handling {type(node.value)}")
 
@@ -116,11 +129,15 @@ class FunctionParser:
             variables.append(binop.left.id)
         elif isinstance(binop.left, ast.BinOp):
             variables.extend(self._collect_binop(binop.left))
+        elif isinstance(binop.left, ast.Subscript):
+            variables.extend(self._collect_subscript(binop.left))
 
         if isinstance(binop.right, ast.Name):
             variables.append(binop.right.id)
         elif isinstance(binop.right, ast.BinOp):
             variables.extend(self._collect_binop(binop.right))
+        elif isinstance(binop.right, ast.Subscript):
+            variables.extend(self._collect_subscript(binop.right))
 
         return variables
 
@@ -165,6 +182,64 @@ class FunctionParser:
         else:
             raise ValueError(f"Unknown function: {func_name}")
 
+    def _collect_unaryop(self, node):
+        variables = []
+        if isinstance(node.operand, ast.Name):
+            variables.append(node.operand.id)
+        elif isinstance(node.operand, ast.BinOp):
+            variables.extend(self._collect_binop(node.operand))
+        elif isinstance(node.operand, ast.UnaryOp):
+            variables.extend(self._collect_unaryop(node.operand))
+        else:
+            raise TypeError(
+                f"No method for handling {type(node.operand)} in a unaryop"
+            )
+        return variables
+
+    def _collect_procedural(self, node):
+        """Collect the variables and dependencies for a procedural function."""
+        dependencies = [arg.arg for arg in node.args.args]
+
+        return_values = []
+        for child_node in ast.walk(node):
+            if isinstance(child_node, ast.Return):
+                if isinstance(child_node.value, ast.Name):
+                    return_values.append(child_node.value.id)
+                elif isinstance(child_node.value, ast.Constant):
+                    return_values.append(child_node.value.value)
+    
+        if len(return_values) > 1:
+            raise ValueError(
+                f"Procedural function {node.name} returns multiple values: {return_values}. Only one return statement is allowed."
+                )
+
+        self.variable_map[return_values[0]] = {
+            "stmt": node,
+            "dependencies": dependencies,
+            "type": "procedural"
+        }
+
+    def _collect_subscript(self, node):
+        """Collect the dependencies for an ast.Subscript node."""
+        variables = []
+        if isinstance(node.value, ast.Name):
+            variables.append(node.value.id)
+        elif isinstance(node.value, ast.BinOp):
+            variables.extend(self._collect_binop(node.value))
+        elif isinstance(node.value, ast.Subscript):
+            variables.extend(self._collect_subscript(node.value))
+        else:
+            raise TypeError(f"No method for handling {type(node.value)} in a subscript")
+
+        if isinstance(node.slice, ast.Name):
+            variables.append(node.slice.id)
+        elif isinstance(node.slice, ast.BinOp):
+            variables.extend(self._collect_binop(node.slice))
+        elif isinstance(node.slice, ast.Subscript):
+            variables.extend(self._collect_subscript(node.slice))
+        else:
+            raise TypeError(f"No method for handling {type(node.slice)} in a subscript")
+        return variables
 
 class AcslSort:
     @classmethod
@@ -178,16 +253,16 @@ class AcslSort:
         parser.collect_variables(function_tree)
 
         variables_to_sort = set(parser.variable_map.keys())
-        calculation_order = OrderedDict()
+        cls.calculation_order = OrderedDict()
 
         while variables_to_sort:
             next_var = cls._pick_next_variable(
-                variables_to_sort, list(calculation_order.keys()), parser.variable_map
+                variables_to_sort, list(cls.calculation_order.keys()), parser.variable_map
             )
             variables_to_sort.remove(next_var)
-            calculation_order[next_var] = parser.variable_map[next_var]
+            cls.calculation_order[next_var] = parser.variable_map[next_var]
         sorted_tree = cls._build_sorted_ast(
-            function_tree, calculation_order, parser.expr_map
+            function_tree, parser.expr_map
         )
         return sorted_tree
 
@@ -211,7 +286,7 @@ class AcslSort:
         )
 
     @classmethod
-    def _build_sorted_ast(cls, function_tree: ast.Module, calculation_order: OrderedDict, expr_map: dict):
+    def _build_sorted_ast(cls, function_tree: ast.Module, expr_map: dict):
         """Build the AST for the sorted function."""
         original_func = function_tree.body[0]
         new_func = ast.FunctionDef(
@@ -228,7 +303,7 @@ class AcslSort:
             decorator_list=[],
             returns=None
         )
-        for var_name, info in calculation_order.items():
+        for var_name, info in cls.calculation_order.items():
             new_func.body.append(info["stmt"])
         for expr_name, info in expr_map.items():
             new_func.body.append(info["stmt"])
