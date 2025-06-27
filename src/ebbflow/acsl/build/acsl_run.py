@@ -7,14 +7,16 @@
 # At this point all of the sections will be executable and all the variables needed
 # will have been collected. The end() method will push results the dynamically generated
 # class. From there this class would need to handle saving the results over time.
-
-from ebbflow.acsl.build.acsl_section import AcslSection
 from typing import Dict
 
 import pandas as pd
 import numpy as np
 
-class AcslRun:
+from ebbflow.acsl.build.acsl_section import AcslSection
+from ebbflow.acsl.acsl_lib import AcslLib
+from ebbflow.acsl.integration.integration_manager import IntegrationManager
+
+class AcslRun(AcslLib):
     def __init__(
         self,
         TSTP: float,
@@ -22,39 +24,66 @@ class AcslRun:
         variables_to_report: list,
         constants: Dict,
         statevars: Dict,
+        integration_manager: IntegrationManager,
         dynamic: AcslSection=None,
         derivative: AcslSection=None,
         discrete: AcslSection=None,
         terminal: AcslSection=None,
     ):
+        super().__init__(integration_manager=integration_manager)
         self.stop_flag = False
         self.TSTP = TSTP
         self.CINT = CINT
         self.t = 0
         self.constants = constants
         self.statevars = statevars
-        self.dynamic = dynamic
-        self.derivative = derivative
-        self.discrete = discrete
-        self.terminal = terminal
+        self._current_section = None
 
-        self.step_size = self.derivative.integration_manager.step_size # Is this the best way to handle this?
+        self.dynamic = self.bind_section_function(dynamic, "DYNAMIC")
+        self.derivative = self.bind_section_function(derivative, "DERIVATIVE") 
+        self.discrete = self.bind_section_function(discrete, "DISCRETE")
+        self.terminal = self.bind_section_function(terminal, "TERMINAL")
+        
+        self.step_size = self.integration_manager.step_size
         self.variables_to_report = variables_to_report + list(self.statevars.keys())
         self.results = pd.DataFrame(columns=["t"] + self.variables_to_report)
 
     def run(self):
         # Main loop
         if self.t == 0:
-            self.derivative.call(arguments=self._get_initial_arguments())
-            self._store_results(self.derivative.previous_section_scope)
+            self.derivative(**self._get_initial_arguments())
+            self._store_results(self.previous_section_scope)
             self.t += self.step_size
     
         while self.t <= self.TSTP:
-            self.derivative.call(arguments=self._get_arguments())
-            self._store_results(self.derivative.previous_section_scope)
+            self.derivative(**self._get_arguments())
+            self._store_results(self.previous_section_scope)
             self.t += self.step_size
-        
+    
         return self._get_final_results()
+
+    def bind_section_function(self, func, section_name):
+        if func is None:
+            # Default method that does not affect state
+            def default_section(self, **arguments):
+                self.end()
+            return default_section
+
+        def bound_method(**arguments):
+            # Set section context if provided
+            old_section = getattr(self, '_current_section', None)
+            if section_name:
+                self._current_section = section_name
+            
+            try:
+                # Call the original function with self as first argument
+                return func(self, **arguments)
+            finally:
+                # Restore previous section context
+                if section_name:
+                    self._current_section = old_section
+
+        return bound_method
 
     def _get_initial_arguments(self):
         initial_statevars = {
@@ -68,10 +97,10 @@ class AcslRun:
 
     def _get_arguments(self):
         new_statevars = {
-            key: self.derivative.previous_section_scope[1][value] for key, value in self.statevars.items()
+            key: self.previous_section_scope[1][value] for key, value in self.statevars.items()
         }
         for statevar, initial_value in self.statevars.items():
-            new_statevars[initial_value] = self.derivative.previous_section_scope[1][statevar]
+            new_statevars[initial_value] = self.previous_section_scope[1][statevar]
         return {
             "t": self.t,
             **self.constants,

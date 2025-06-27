@@ -26,7 +26,6 @@ class AcslBuild:
         self.section_trees = section_trees
         self.constants = {}
         self.statevars = {}
-        self.acsl_sections = {}
         self.integration_settings = {
             "IALG": None,
             "NSTP": None,
@@ -88,16 +87,22 @@ class AcslBuild:
         )
 
         # Process sections to executable functions
+        section_functions = {}
         for section_name, tree, _ in self._iterate("_acsl_section"):
-            self.acsl_sections[section_name] = AcslSection(
-                section_name, tree, integ_manager
+            section_functions[section_name] = AcslSection(
+                section_name, tree
             )
-            self.acsl_sections[section_name].modify_signature(
+            section_functions[section_name].modify_signature(
                 self.constants, self.statevars
             )
-            self.acsl_sections[section_name].remove_decorators()
-            self.acsl_sections[section_name].remove_self_calls()
-            self.acsl_sections[section_name].create_executable()
+            section_functions[section_name].remove_decorators()
+            section_functions[section_name].remove_self_calls()
+            section_functions[section_name].create_executable()
+
+        dynamic_func = section_functions.get("DYNAMIC").executable_func if section_functions.get("DYNAMIC") else None
+        derivative_func = section_functions.get("DERIVATIVE").executable_func if section_functions.get("DERIVATIVE") else None
+        discrete_func = section_functions.get("DISCRETE").executable_func if section_functions.get("DISCRETE") else None
+        terminal_func = section_functions.get("TERMINAL").executable_func if section_functions.get("TERMINAL") else None
 
         return AcslRun(
             TSTP=self.TSTP,
@@ -105,10 +110,11 @@ class AcslBuild:
             variables_to_report=self.variables_to_report,
             constants=self.constants,
             statevars=self.statevars,
-            dynamic=self.acsl_sections.get("DYNAMIC"),
-            derivative=self.acsl_sections.get("DERIVATIVE"),
-            discrete=self.acsl_sections.get("DISCRETE"),
-            terminal=self.acsl_sections.get("TERMINAL"),
+            integration_manager=integ_manager,
+            dynamic=dynamic_func,
+            derivative=derivative_func,
+            discrete=discrete_func,
+            terminal=terminal_func,
         )
 
     def _iterate(self, filter: str):

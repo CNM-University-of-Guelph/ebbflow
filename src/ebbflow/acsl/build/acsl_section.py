@@ -5,17 +5,13 @@ from typing import Dict
 from ebbflow.acsl.visitors.signature_modifier import SignatureModifier
 from ebbflow.acsl.visitors.decorator_remover import DecoratorRemover
 from ebbflow.acsl.visitors.call_remover import CallRemover
-from ebbflow.acsl.acsl_lib import AcslLib
-from ebbflow.acsl.integration.integration_manager import IntegrationManager
 
-class AcslSection(AcslLib):
+class AcslSection:
     def __init__(
             self,
             name: str,
             tree: ast.AST,
-            integration_manager: IntegrationManager
         ):
-        super().__init__(integration_manager=integration_manager)
         self.section_name = name
         self.procedural_functions = []
         self.tree = self._extract_procedural_functions(tree)

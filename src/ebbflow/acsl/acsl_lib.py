@@ -50,8 +50,8 @@ class AcslLib:
                 not callable(value) and
                 name != "self"
             }
-            self.previous_section_scope = (self.section_name, filtered_vars)
-
+            section_name = getattr(self, '_current_section', 'unknown')
+            self.previous_section_scope = (section_name, filtered_vars)
         finally:
             del frame
 
