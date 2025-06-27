@@ -87,7 +87,8 @@ class AcslRun(AcslLib):
 
     def _get_initial_arguments(self):
         initial_statevars = {
-            key: self.constants[value] for key, value in self.statevars.items()
+            key: self.constants[value] if isinstance(value, str) else value
+            for key, value in self.statevars.items()
         }
         initial_statevars["t"] = self.t
         return {
