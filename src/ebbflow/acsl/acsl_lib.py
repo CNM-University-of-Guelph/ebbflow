@@ -14,7 +14,7 @@ class AcslLib:
     """
     def __init__(
             self,
-            integration_manager:IntegrationManager=None
+            integration_manager: IntegrationManager = None
         ):
         self.previous_section_scope = ()
         self.section_name = "AcslLib"
@@ -30,6 +30,30 @@ class AcslLib:
             raise ValueError(
                 f"Constant value must be an int, float, bool, or list, got {type(value).__name__}"
             )
+
+    def delay(self, x, ic, tdl, nmx, delmin):
+        # NOTE: Placeholder for delay function
+        return x
+
+    def end(self):
+        """
+        Capture the local scope of the calling section. 
+
+        This is required at the end of each section method.
+        """
+        frame = inspect.currentframe().f_back
+        try:
+            local_vars = frame.f_locals.copy()
+            filtered_vars = {
+                name: value for name, value in local_vars.items()
+                if not name.startswith('_') and
+                not callable(value) and
+                name != "self"
+            }
+            self.previous_section_scope = (self.section_name, filtered_vars)
+
+        finally:
+            del frame
 
     def integ(self, deriv, ic):
         # Find the name of the deriv variable in the local scope
@@ -52,26 +76,6 @@ class AcslLib:
                 name != "self"
             }
             return self.integration_manager.integrate(deriv_name, ic, time_state)
-
-        finally:
-            del frame
-
-    def end(self):
-        """
-        Capture the local scope of the calling section. 
-
-        This is required at the end of each section method.
-        """
-        frame = inspect.currentframe().f_back
-        try:
-            local_vars = frame.f_locals.copy()
-            filtered_vars = {
-                name: value for name, value in local_vars.items()
-                if not name.startswith('_') and
-                not callable(value) and
-                name != "self"
-            }
-            self.previous_section_scope = (self.section_name, filtered_vars)
 
         finally:
             del frame

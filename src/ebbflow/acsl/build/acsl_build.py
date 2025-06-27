@@ -32,7 +32,7 @@ class AcslBuild:
             "NSTP": None,
             "MAXT": None,
         }
-        self.CINT = CINT
+        self.CINT = CINT # NOTE: Passed in from Acsl.run() method
         self.TSTP = TSTP
         self.constant_manager = ConstantManager(initial_scope)
         self.statevar_collector = StatevarCollector()
@@ -61,9 +61,15 @@ class AcslBuild:
         # Collect integration settings from DYNAMIC section
         self.integration_settings_collector.visit(self.section_trees.get("DYNAMIC")[0])
         self.integration_settings = self.integration_settings_collector.settings
+        
+        # Set CINT from constants
         self.CINT = self.constants.get("CINT", self.CINT)
         if self.CINT is None:
-            raise ValueError("CINT is not set defined. It must be defined in the DYNAMIC section or passed as an argument to the run() method.")
+            self.CINT = self.integration_settings.get("CINT", None)
+        if self.CINT is None or not isinstance(self.CINT, int):
+            self.CINT = 1  # NOTE: set default for cases where CINT is defined in Dynamic
+                           # Need to be able to initalize the integration routine which means IntegrationManager
+                           # needs to be initialized with a value
 
         # Create executables for integration manager
         derivative_functions = {}
@@ -92,9 +98,6 @@ class AcslBuild:
             self.acsl_sections[section_name].remove_decorators()
             self.acsl_sections[section_name].remove_self_calls()
             self.acsl_sections[section_name].create_executable()
-
-            # NOTE: save for debugging
-            self.acsl_sections[section_name].save(f"./dev/acsl_sections/{section_name}.py")
 
         return AcslRun(
             TSTP=self.TSTP,
