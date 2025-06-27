@@ -64,16 +64,16 @@ class IntegrationManager:
     def integrate(self, deriv_name: str, ic: float, time_state: Dict):
         return self.integ_methods[self.IALG](deriv_name, ic, time_state)
 
-    def adams_moulton(self):
+    def adams_moulton(self, deriv_name: str, ic: float, time_state: Dict):
         raise NotImplementedError("Adams-Moulton integration is not implemented")
 
-    def gear_stiff(self):
+    def gear_stiff(self, deriv_name: str, ic: float, time_state: Dict):
         raise NotImplementedError("Gear's stiff integration is not implemented")
 
-    def runge_kutta_euler(self):
+    def runge_kutta_euler(self, deriv_name: str, ic: float, time_state: Dict):
         raise NotImplementedError("Runge-Kutta (Euler) integration is not implemented")
 
-    def runge_kutta_second_order(self):
+    def runge_kutta_second_order(self, deriv_name: str, ic: float, time_state: Dict):
         raise NotImplementedError("Runge-Kutta (second order) integration is not implemented")
 
     def runge_kutta_fourth_order(self, deriv_name: str, ic: float, time_state: Dict):
@@ -95,14 +95,14 @@ class IntegrationManager:
 
         return ic + (self.step_size / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
-    def user_supplied_subroutine(self):
+    def user_supplied_subroutine(self, deriv_name: str, ic: float, time_state: Dict):
         raise NotImplementedError("User-supplied subroutine integration is not implemented")
 
-    def runge_kutta_fehlberg_second_order(self):
+    def runge_kutta_fehlberg_second_order(self, deriv_name: str, ic: float, time_state: Dict):
         raise NotImplementedError("Runge-Kutta-Fehlberg (second order) integration is not implemented")
 
-    def runge_kutta_fehlberg_fifth_order(self):
+    def runge_kutta_fehlberg_fifth_order(self, deriv_name: str, ic: float, time_state: Dict):
         raise NotImplementedError("Runge-Kutta-Fehlberg (fifth order) integration is not implemented")
 
-    def differential_algebraic_system_solver(self):
+    def differential_algebraic_system_solver(self, deriv_name: str, ic: float, time_state: Dict):
         raise NotImplementedError("Differential algebraic system solver integration is not implemented")
