@@ -1,7 +1,7 @@
 import ast
 from typing import Dict, Tuple
 
-from ebbflow.acsl.visitors.constant_collector import ConstantCollector
+from ebbflow.acsl.build.ast_visitors.constant_collector import ConstantCollector
 
 class ConstantManager:
     def __init__(self, initial_scope: Tuple[str, Dict]):

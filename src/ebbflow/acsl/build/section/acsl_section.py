@@ -2,9 +2,9 @@
 import ast
 from typing import Dict
 
-from ebbflow.acsl.visitors.signature_modifier import SignatureModifier
-from ebbflow.acsl.visitors.decorator_remover import DecoratorRemover
-from ebbflow.acsl.visitors.call_remover import CallRemover
+from ebbflow.acsl.build.section.signature_modifier import SignatureModifier
+from ebbflow.acsl.build.section.decorator_remover import DecoratorRemover
+from ebbflow.acsl.build.section.call_remover import CallRemover
 
 class AcslSection:
     def __init__(

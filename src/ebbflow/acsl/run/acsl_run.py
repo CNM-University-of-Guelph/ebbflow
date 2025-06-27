@@ -12,7 +12,7 @@ from typing import Dict
 import pandas as pd
 import numpy as np
 
-from ebbflow.acsl.build.acsl_section import AcslSection
+from ebbflow.acsl.build.section.acsl_section import AcslSection
 from ebbflow.acsl.acsl_lib import AcslLib
 from ebbflow.acsl.integration.integration_manager import IntegrationManager
 

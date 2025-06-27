@@ -3,13 +3,13 @@
 import ast
 from typing import Dict, Tuple
 
-from ebbflow.acsl.preprocessing.constant_manager import ConstantManager
-from ebbflow.acsl.visitors.statevar_collector import StatevarCollector
-from ebbflow.acsl.preprocessing.acsl_sort import AcslSort
-from ebbflow.acsl.build.acsl_section import AcslSection
-from ebbflow.acsl.build.acsl_run import AcslRun
-from ebbflow.acsl.visitors.integration_settings_collector import IntegrationSettingsCollector
-from ebbflow.acsl.visitors.integ_function_creator import IntegFunctionCreator
+from ebbflow.acsl.build.ast_visitors.constant_manager import ConstantManager
+from ebbflow.acsl.build.ast_visitors.statevar_collector import StatevarCollector
+from ebbflow.acsl.build.sort.acsl_sort import AcslSort
+from ebbflow.acsl.build.section.acsl_section import AcslSection
+from ebbflow.acsl.run.acsl_run import AcslRun
+from ebbflow.acsl.build.ast_visitors.integration_settings_collector import IntegrationSettingsCollector
+from ebbflow.acsl.build.ast_visitors.integ_function_creator import IntegFunctionCreator
 from ebbflow.acsl.integration.integration_manager import IntegrationManager
 
 class AcslBuild:
