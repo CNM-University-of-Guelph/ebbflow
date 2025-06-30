@@ -73,7 +73,7 @@ class AcslBuild:
         """
         # Collect constants
         for section_name, tree, _ in self._iterate("collect_constants"):
-            self.constant_manager.collect(section_name, tree)
+            self.constant_manager.collect(tree)
         self.constants = self.constant_manager.constants
 
         # Collect statevars
