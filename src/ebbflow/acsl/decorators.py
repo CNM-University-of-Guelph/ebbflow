@@ -2,56 +2,56 @@ from typing import Callable
 import functools
 
 def INITIAL(func: Callable) -> Callable:
-    func._acsl_section = 'INITIAL'
-    func._collect_constants = True
-    if not hasattr(func, '_collect_statevars'):
-        func._collect_statevars = False
-    if not hasattr(func, '_sort'):
-        func._sort = False
+    func.acsl_section = 'INITIAL'
+    func.collect_constants = True
+    if not hasattr(func, 'collect_statevars'):
+        func.collect_statevars = False
+    if not hasattr(func, 'sort'):
+        func.sort = False
     return func
 
 
 def DYNAMIC(func: Callable) -> Callable:
-    func._acsl_section = 'DYNAMIC'
-    func._collect_constants = True
-    if not hasattr(func, '_collect_statevars'):
-        func._collect_statevars = False
-    if not hasattr(func, '_sort'):
-        func._sort = False
+    func.acsl_section = 'DYNAMIC'
+    func.collect_constants = True
+    if not hasattr(func, 'collect_statevars'):
+        func.collect_statevars = False
+    if not hasattr(func, 'sort'):
+        func.sort = False
     return func
 
 
 def DERIVATIVE(func: Callable) -> Callable:
-    func._acsl_section = 'DERIVATIVE'
-    func._collect_constants = True
-    func._collect_statevars = True
-    func._sort = True
+    func.acsl_section = 'DERIVATIVE'
+    func.collect_constants = True
+    func.collect_statevars = True
+    func.sort = True
     return func
 
 
 def DISCRETE(func: Callable) -> Callable:
-    func._acsl_section = 'DISCRETE'
-    func._collect_constants = True
-    if not hasattr(func, '_collect_statevars'):
-        func._collect_statevars = False
-    if not hasattr(func, '_sort'):
-        func._sort = False
+    func.acsl_section = 'DISCRETE'
+    func.collect_constants = True
+    if not hasattr(func, 'collect_statevars'):
+        func.collect_statevars = False
+    if not hasattr(func, 'sort'):
+        func.sort = False
     return func
 
 
 def TERMINAL(func: Callable) -> Callable:
-    func._acsl_section = 'TERMINAL'
-    func._collect_constants = True
-    if not hasattr(func, '_collect_statevars'):
-        func._collect_statevars = False
-    if not hasattr(func, '_sort'):
-        func._sort = False
+    func.acsl_section = 'TERMINAL'
+    func.collect_constants = True
+    if not hasattr(func, 'collect_statevars'):
+        func.collect_statevars = False
+    if not hasattr(func, 'sort'):
+        func.sort = False
     return func
 
 
 def SORT(func: Callable) -> Callable:
-    func._sort = True
-    func._collect_statevars = True
+    func.sort = True
+    func.collect_statevars = True
     return func
 
 

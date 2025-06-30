@@ -42,17 +42,17 @@ class AcslBuild:
 
     def build(self):
         # Collect constants
-        for section_name, tree, _ in self._iterate("_collect_constants"):
+        for section_name, tree, _ in self._iterate("collect_constants"):
             self.constant_manager.collect(section_name, tree)
         self.constants = self.constant_manager.constants
 
         # Collect statevars
-        for section_name, tree, _ in self._iterate("_collect_statevars"):
+        for section_name, tree, _ in self._iterate("collect_statevars"):
             self.statevar_collector.visit(tree)
         self.statevars = self.statevar_collector.integ_calls
 
         # Sort sections
-        for section_name, tree, metadata in self._iterate("_sort"):
+        for section_name, tree, metadata in self._iterate("sort"):
             self.section_trees[section_name] = (self.sorter.sort(
                 tree, self.constants.keys()
             ), metadata)
@@ -73,8 +73,8 @@ class AcslBuild:
         # Create executables for integration manager
         derivative_functions = {}
         self.integ_function_creator.set_constants(list(self.constants.keys()))
-        for section_name, tree, metadata in self._iterate("_sort"):
-            if metadata.get("_sort", False):
+        for section_name, tree, metadata in self._iterate("sort"):
+            if metadata.get("sort", False):
                 integ_funcs = self.integ_function_creator.visit(tree)
                 derivative_functions.update(integ_funcs)
 
@@ -88,7 +88,7 @@ class AcslBuild:
 
         # Process sections to executable functions
         section_functions = {}
-        for section_name, tree, _ in self._iterate("_acsl_section"):
+        for section_name, tree, _ in self._iterate("acsl_section"):
             section_functions[section_name] = AcslSection(
                 section_name, tree
             )
