@@ -38,13 +38,15 @@ class FunctionParser:
         self.constant_names = list(constant_names)
         self.state_variables = []
 
-    def collect_variables(self, function_tree: ast.Module) -> None:
+    def collect_variables(self, function_tree: ast.Module, include_constants: bool = False) -> None:
         """Collect the calcualted variables and their dependencies.
 
         Parameters
         ----------
         function_tree : ast.Module
             The AST of the function.
+        include_constants : bool
+            Whether to include constants in the dependencies.
 
         Returns
         -------
@@ -64,7 +66,8 @@ class FunctionParser:
             elif isinstance(node, ast.Expr):
                 self._collect_expr(node)
 
-        self.filter_variable_map()
+        if not include_constants:
+            self.filter_variable_map()
 
     def filter_variable_map(self) -> None:
         """Remove constants and state variables from the variable map.

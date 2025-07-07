@@ -4,6 +4,8 @@
 import ast
 from typing import List, Tuple, Set, Dict, Callable
 
+from ebbflow.acsl.build.sort.function_parser import FunctionParser
+
 class IntegFunctionCreator(ast.NodeVisitor):
     """AST visitor to create functions for the derivatives of the state 
     variables.
@@ -91,18 +93,28 @@ class IntegFunctionCreator(ast.NodeVisitor):
 
         for func_node in node.body:
             if isinstance(func_node, ast.FunctionDef):
-                break
-        else:
-            raise ValueError("No function definition found in the node")
+                for decorator in func_node.decorator_list:
+                    if decorator.id == "PROCEDURAL":
+                        continue
+                    else:
+                        break
+            else:
+                raise ValueError("No function definition found in the node")
 
         # 1. Detect self.integ calls
         state_vars = self._detect_integ_calls(func_node)
         if not state_vars:
             return {}
+        # Include initial state variables in constants
         self.constants.update({state_var for _, state_var in state_vars})
 
         # 2. Extract assignment expressions
-        self._extract_assignments(func_node)
+        parser = FunctionParser(self.constants)
+        parser.collect_variables(
+            ast.Module(body=[func_node], type_ignores=[]),
+            include_constants=True
+        )
+        self.assignments = dict(parser.variable_map)
 
         # 3. Extract dependencies to caclulate derivatives
         for deriv, state_var in state_vars:
@@ -113,6 +125,16 @@ class IntegFunctionCreator(ast.NodeVisitor):
             func_ast, args = self._create_derivative_function(
                 deriv_var, dependencies
             )
+
+            # NOTE DEBUGGING
+            # module_body = func_ast.body
+            # module = ast.Module(body=module_body, type_ignores=[])
+            # code = ast.unparse(module)
+            # with open(f"./derivative_funcs/{deriv_var}.py", "w", encoding="utf-8") as f:
+            #     f.write(f"# Code for section {deriv_var}\n")
+            #     f.write("# Generated automatically by IntegFunctionCreator\n\n")
+            #     f.write(code)
+
             deriv_functions[f"{deriv_var}"] = (
                 self._create_executable(func_ast, f"calculate_{deriv_var}"),
                 args
@@ -159,60 +181,13 @@ class IntegFunctionCreator(ast.NodeVisitor):
                             integ_vars.append((diff_var, target_var))
         return integ_vars
 
-    def _extract_assignments(self, func_node: ast.FunctionDef):
-        """Extract assignment expressions from the function body.
-
-        Parameters
-        ----------
-        func_node : ast.FunctionDef
-            The function node to check.
-
-        Returns
-        -------
-        None
-
-        Raises
-        ------
-        ValueError
-            If an unsupported assignment target is found.
-        """
-
-        for stmt in func_node.body:
-            if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1:
-                target = stmt.targets[0]
-                if isinstance(target, ast.Name):
-                    var_name = target.id
-                    dependencies = self._extract_names_from_binop(stmt.value)
-                    self.assignments[var_name] = (stmt, dependencies)
-                else:
-                    raise ValueError(f"Unsupported assignment target: {target}")
-
-    def _extract_names_from_binop(self, expr: ast.BinOp) -> Set[str]:
-        """Extract variable names from a binary operation.
-
-        Parameters
-        ----------
-        expr : ast.BinOp
-            The binary operation to extract variable names from.
-
-        Returns
-        -------
-        Set[str]
-            A set of variable names.
-        """
-        variables = set()
-        if isinstance(expr, ast.BinOp):
-            for node in ast.walk(expr):
-                if isinstance(node, ast.Name):
-                    variables.add(node.id)
-        return variables
-
     def _create_dependency_map(
         self,
         diff_var: str,
         state_var: str
     ) -> List[str]:
-        """Map the state variable to its dependencies.
+        """Map the state variable to its dependencies. All constants are provided
+        as input to the function.
 
         Parameters
         ----------
@@ -227,7 +202,7 @@ class IntegFunctionCreator(ast.NodeVisitor):
         """
         calc_order = 1
         dependencies = {}
-        calculated_vars = set(state_var)
+        calculated_vars = {state_var} | self.constants
         var_to_calc = diff_var
 
         while var_to_calc:
@@ -244,7 +219,7 @@ class IntegFunctionCreator(ast.NodeVisitor):
 
             # Add dependences for calculation
             if var_to_calc in self.assignments:
-                var_dependencies = self.assignments[var_to_calc][1]
+                var_dependencies = self.assignments[var_to_calc]["dependencies"]
                 for var in var_dependencies:
                     if var not in self.constants and var not in dependencies:
                         dependencies[var] = f"calc_{calc_order}"
@@ -298,7 +273,6 @@ class IntegFunctionCreator(ast.NodeVisitor):
             The derivative variable name.
         dependencies : Dict[str, str]
             Dict mapping variable names to their dependencies.
-
         Returns
         -------
         Tuple[ast.Module, List[str]]
@@ -329,6 +303,10 @@ class IntegFunctionCreator(ast.NodeVisitor):
 
         calc_vars_with_order.sort(key=lambda x: x[1], reverse=True)
         calc_vars = [var for var, _ in calc_vars_with_order]
+
+        # Always include time as a constant
+        if "t" not in constants:
+            constants.append("t")
 
         func_ast = self._create_function_ast(
             deriv_var, state_var, constants, calc_vars
@@ -363,12 +341,12 @@ class IntegFunctionCreator(ast.NodeVisitor):
         body = []
         for var in calc_vars:
             if var in self.assignments:
-                stmt, _ = self.assignments[var]
+                stmt = self.assignments[var]["stmt"]
                 body.append(stmt)
 
         # Add assignment for the derivative variable if it exists
         if deriv_var in self.assignments:
-            stmt, _ = self.assignments[deriv_var]
+            stmt = self.assignments[deriv_var]["stmt"]
             body.append(stmt)
 
         # Add return statement for the derivative variable
