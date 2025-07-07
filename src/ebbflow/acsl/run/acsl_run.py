@@ -102,12 +102,18 @@ class AcslRun(AcslLib):
 
     def run(self):
         """The main loop of the ACSL software."""
+        self._initialize_integration_routine()
+
         if self.t == 0:
+            # self.dynamic(**self._get_initial_arguments())
+            # self._store_results(self.previous_section_scope)
             self.derivative(**self._get_initial_arguments())
             self._store_results(self.previous_section_scope)
             self.t += self.step_size
 
         while self.t <= self.TSTP:
+            # self.dynamic(**self._get_arguments())
+            # self._store_results(self.previous_section_scope)
             self.derivative(**self._get_arguments())
             self._store_results(self.previous_section_scope)
             self.t += self.step_size
@@ -154,6 +160,23 @@ class AcslRun(AcslLib):
                     self._current_section = old_section
 
         return bound_method
+
+    def _initialize_integration_routine(self) -> None:
+        """Initialize the integration routine."""
+        try:
+            self.derivative(**self._get_initial_arguments())
+        except (ValueError, KeyError):
+            raise ValueError(
+                "DERIVATIVE section failed to run. "
+                "Check that all variables are defined."
+            )
+        try:
+            self.dynamic(**self._get_initial_arguments())
+        except (ValueError, KeyError):
+            raise ValueError(
+                "DYNAMIC section failed to run. "
+                "Check that all variables are defined."
+            )
 
     def _get_initial_arguments(self) -> Dict[str, float]:
         """Get the initial arguments for the simulation.
