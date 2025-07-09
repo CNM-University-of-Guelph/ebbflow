@@ -4,6 +4,7 @@ import inspect
 from typing import Union
 
 from ebbflow.acsl.integration.integration_manager import IntegrationManager
+from ebbflow.acsl.acsl_lib_helpers.delay_buffer import DelayBuffer
 
 class AcslLib:
     """A library of methods that can be called within an ACSL model.
@@ -40,6 +41,7 @@ class AcslLib:
         self.section_name = "AcslLib"
         self.integration_manager = integration_manager
         self.IALG = integration_manager.IALG if integration_manager else 5 # pylint: disable=C0103
+        self._delay_buffers = {}
 
     def constant(self, name: str, value: Union[int, float, bool, list]):
         """
@@ -68,12 +70,59 @@ class AcslLib:
                 f"got {type(value).__name__}"
             )
 
-    def delay(self, x, ic, tdl, nmx, delmin):
-        """Placeholder for the delay function. Currently returns the input x.
-        """
-        # NOTE: Placeholder for delay function
-        return x
+    def delay(self, x, ic, tdl, nmx, delmin, delay_id=None):
+        """Delay a variable in time to model the effect of transport.
 
+        Parameters
+        ----------
+        x : float | int
+            The value of the variable to delay.
+        ic : float | int
+            The initial value of the variable until the variable has advanced by
+            the delay.
+        tdl : float | int
+            The delay time from input to output. Greater than 0.
+        nmx : int
+            The maximum number of data points to represent the delay.
+        delmin : float | int
+            The minimum interval between saving of data points in delay buffer.
+        id : str
+            The unique identifier for the delay buffer.
+
+        Returns
+        -------
+        float | int
+            The value of the variable after the delay.
+        """
+        if tdl <= 0:
+            raise ValueError("Delay time (tdl) must be greater than 0")
+        if nmx < 1:
+            raise ValueError("Maximum data points (nmx) must be at least 1")
+        if delmin <= 0:
+            raise ValueError("Minimum interval (delmin) must be greater than 0")
+        if delay_id is None:
+            raise ValueError("Delay buffer identifier (id) must be provided")
+
+        if delay_id not in self._delay_buffers:
+            buffer_info = {
+                "buffer": DelayBuffer(nmx, ic, getattr(self, "t", 0.0)),
+                "last_updated_time": float("-inf") # Force first update
+            }
+            self._delay_buffers[delay_id] = buffer_info
+        else:
+            buffer_info = self._delay_buffers[delay_id]
+
+        current_time = getattr(self, 't', 0.0)
+        time_since_last = current_time - buffer_info["last_updated_time"]
+        min_interval = max(delmin, self.step_size)
+
+        if time_since_last >= min_interval:
+            buffer_info["buffer"].add(current_time, x)
+            buffer_info["last_update_time"] = current_time
+
+        delayed_value = buffer_info["buffer"].get_delayed_value(current_time, tdl)
+        return delayed_value
+ 
     def end(self):
         """
         Capture the local scope of the calling function.

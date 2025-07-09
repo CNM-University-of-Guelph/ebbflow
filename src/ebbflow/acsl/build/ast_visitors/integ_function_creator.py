@@ -130,7 +130,7 @@ class IntegFunctionCreator(ast.NodeVisitor):
             # module_body = func_ast.body
             # module = ast.Module(body=module_body, type_ignores=[])
             # code = ast.unparse(module)
-            # with open(f"./derivative_funcs/{deriv_var}.py", "w", encoding="utf-8") as f:
+            # with open(f"./dev/derivative_funcs/{deriv_var}.py", "w", encoding="utf-8") as f:
             #     f.write(f"# Code for section {deriv_var}\n")
             #     f.write("# Generated automatically by IntegFunctionCreator\n\n")
             #     f.write(code)
