@@ -202,6 +202,7 @@ class IntegFunctionCreator(ast.NodeVisitor):
         """
         calc_order = 1
         dependencies = {}
+        # dependencies = collections.OrderedDict()
         calculated_vars = {state_var} | self.constants
         var_to_calc = diff_var
 
@@ -293,25 +294,48 @@ class IntegFunctionCreator(ast.NodeVisitor):
             elif var_type == "constant":
                 constants.append(var_name)
             elif var_type.startswith("calc_"):
-                order_num = int(var_type.split("_")[1])
-                calc_vars_with_order.append((var_name, order_num))
+                calc_vars_with_order.append(var_name)
 
         if not state_var:
             raise ValueError(
                 f"No state variable found for derivative {deriv_var}"
             )
-
-        calc_vars_with_order.sort(key=lambda x: x[1], reverse=True)
-        calc_vars = [var for var, _ in calc_vars_with_order]
-
         # Always include time as a constant
         if "t" not in constants:
             constants.append("t")
 
+        calc_vars = self._check_calculation_order(calc_vars_with_order, constants + [state_var])       
         func_ast = self._create_function_ast(
             deriv_var, state_var, constants, calc_vars
         )
         return (func_ast, constants + [state_var])
+
+    def _check_calculation_order(
+        self,
+        calc_vars_with_order: List[str],
+        initial_state: List[str]
+    ) -> List[str]:
+        """Check that all function dependencies are defined before they are used.
+        """
+        function_state = set(initial_state)
+        sorted_vars = []
+        max_iter = 0
+        while calc_vars_with_order and max_iter < 1000:
+            var_name = calc_vars_with_order.pop(0) # Take the first variable
+            variable_dependencies = self.assignments[var_name]["dependencies"]
+            if not all(dep in function_state for dep in variable_dependencies):
+                calc_vars_with_order.append(var_name)
+                max_iter += 1
+            else:
+                function_state.add(var_name)
+                sorted_vars.append(var_name)
+
+        if max_iter >= 1000:
+            raise ValueError(
+                f"Calculation order check failed for {var_name} after 1000 iterations. "
+                "The function dependencies are not defined before they are used."
+            )
+        return sorted_vars
 
     def _create_function_ast(
         self,
@@ -365,7 +389,7 @@ class IntegFunctionCreator(ast.NodeVisitor):
             name=f"calculate_{deriv_var}",
             args=ast.arguments(
                 posonlyargs=[],
-                args=[],
+                args=[ast.arg(arg="self", annotation=None)],
                 vararg=None,
                 kwonlyargs=kwonlyargs,
                 kw_defaults=kw_defaults,

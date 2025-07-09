@@ -115,8 +115,7 @@ class AcslBuild:
             self.integration_settings["IALG"],
             self.integration_settings["MAXT"],
             self.integration_settings["NSTP"],
-            self.CINT,
-            derivative_functions
+            self.CINT
         )
 
         # Process sections to executable functions
@@ -164,6 +163,7 @@ class AcslBuild:
             derivative=derivative_func,
             discrete=discrete_func,
             terminal=terminal_func,
+            derivative_functions=derivative_functions
         )
 
     def _iterate(self, attribute: str):

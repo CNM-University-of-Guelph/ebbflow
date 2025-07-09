@@ -179,8 +179,9 @@ class AcslLib:
                 not callable(value) and
                 name != "self"
             }
+            deriv_function, arg_names = self.derivative_functions[deriv_name]
             return self.integration_manager.integrate(
-                deriv_name, ic, time_state
+                deriv_function, arg_names, ic, time_state
             )
 
         finally:
