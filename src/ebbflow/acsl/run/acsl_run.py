@@ -1,5 +1,5 @@
 """Implements the main loop of the ACSL software."""
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, List
 
 import pandas as pd
 import numpy as np
@@ -79,6 +79,7 @@ class AcslRun(AcslLib):
         derivative: Optional[AcslSection]=None,
         discrete: Optional[AcslSection]=None,
         terminal: Optional[AcslSection]=None,
+        derivative_functions: Optional[Dict[str, Callable]]=None
     ):
         super().__init__(integration_manager=integration_manager)
         self.stop_flag = False
@@ -93,12 +94,18 @@ class AcslRun(AcslLib):
         self.derivative = self.bind_section_function(derivative, "DERIVATIVE")
         self.discrete = self.bind_section_function(discrete, "DISCRETE")
         self.terminal = self.bind_section_function(terminal, "TERMINAL")
+        self.derivative_functions = {}
+        for deriv_name, (deriv_func, arg_names) in derivative_functions.items():
+            self.derivative_functions[deriv_name] = (
+                self.bind_derivative_function(deriv_func),
+                arg_names
+            )
 
         self.step_size = self.integration_manager.step_size
-        self.variables_to_report = (
+        self.variables_to_report = set(
             variables_to_report + list(self.statevars.keys())
         )
-        self.results = pd.DataFrame(columns=["t"] + self.variables_to_report)
+        self.results = pd.DataFrame(columns=["t"] + list(self.variables_to_report))
 
     def run(self):
         """The main loop of the ACSL software."""
@@ -160,6 +167,24 @@ class AcslRun(AcslLib):
                     self._current_section = old_section
 
         return bound_method
+    
+    def bind_derivative_function(self, func: Callable) -> Callable:
+        """Bind a derivative function to the class.
+        
+        Parameters
+        ----------
+        func : Callable
+            The function to bind.
+        arg_names : List[str]
+            The names of the arguments to the function.
+        Returns
+        -------
+        Callable
+            The bound function.
+        """
+        def bound_method(**arguments):
+            return func(self, **arguments)
+        return bound_method
 
     def _initialize_integration_routine(self) -> None:
         """Initialize the integration routine."""
@@ -207,10 +232,13 @@ class AcslRun(AcslLib):
         """
         new_statevars = {
             key: self.previous_section_scope[1][value]
+            if isinstance(value, str)
+            else value
             for key, value in self.statevars.items()
         }
         for statevar, init_value in self.statevars.items():
-            new_statevars[init_value] = self.previous_section_scope[1][statevar]
+            if isinstance(init_value, str):
+                new_statevars[init_value] = self.previous_section_scope[1][statevar]
         return {
             "t": self.t,
             **self.constants,

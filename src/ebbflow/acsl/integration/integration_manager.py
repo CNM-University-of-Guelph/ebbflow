@@ -57,8 +57,7 @@ class IntegrationManager:
         IALG: int, # pylint: disable=invalid-name
         MAXT: float, # pylint: disable=invalid-name
         NSTP: int, # pylint: disable=invalid-name
-        CINT: int, # pylint: disable=invalid-name
-        derivative_functions: Dict[str, Callable]
+        CINT: int # pylint: disable=invalid-name
         ):
         self.integ_methods = {
             1: self.adams_moulton,
@@ -72,7 +71,6 @@ class IntegrationManager:
             9: self.runge_kutta_fehlberg_fifth_order,
             10: self.differential_algebraic_system_solver,
         }
-        self.derivative_functions = derivative_functions
         self.IALG = IALG # pylint: disable=invalid-name
         self.MAXT = MAXT # pylint: disable=invalid-name
         self.NSTP = NSTP # pylint: disable=invalid-name
@@ -126,13 +124,15 @@ class IntegrationManager:
             kwargs[arg_name] = time_state[arg_name]
         return kwargs
 
-    def integrate(self, deriv_name: str, ic: float, time_state: Dict) -> float:
+    def integrate(self, deriv_function: Callable, arg_names: List[str], ic: float, time_state: Dict) -> float:
         """Call the selected integration method.
 
         Parameters
         ----------
-        deriv_name : str
-            The name of the derivative function.
+        deriv_function : Callable
+            The derivative function.
+        arg_names : List[str]
+            The arguments to the derivative function.
         ic : float
             The initial condition for the state variable.
         time_state : dict[str, float]
@@ -143,7 +143,7 @@ class IntegrationManager:
         float
             The value of the state variable at the next time step.
         """
-        return self.integ_methods[self.IALG](deriv_name, ic, time_state)
+        return self.integ_methods[self.IALG](deriv_function, arg_names, ic, time_state)
 
     def adams_moulton(
         self,
@@ -264,7 +264,8 @@ class IntegrationManager:
 
     def runge_kutta_fourth_order(
         self,
-        deriv_name: str,
+        deriv_function: Callable,
+        arg_names: List[str],
         ic: float,
         time_state: Dict
     ) -> float:
@@ -284,7 +285,6 @@ class IntegrationManager:
         float
             The value of the state variable at the next time step.
         """
-        deriv_function, arg_names = self.derivative_functions[deriv_name]
         state_var = arg_names[-1]
 
         kwargs = self._get_kwargs(arg_names, state_var, time_state)

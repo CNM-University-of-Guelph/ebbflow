@@ -105,6 +105,7 @@ class FunctionParser:
             If the assignment value is not a supported node type.
         """
         is_state_var = False
+        node_type = "assign"
         if (
             isinstance(node.targets[0], ast.Tuple) or
             isinstance(node.targets[0], ast.List)
@@ -116,7 +117,7 @@ class FunctionParser:
         if isinstance(node.value, ast.BinOp):
             parameters = self._collect_binop(node.value)
         elif isinstance(node.value, ast.Call):
-            parameters, is_state_var = self._collect_call(node.value)
+            parameters, is_state_var, node_type = self._collect_call(node.value)
         elif isinstance(node.value, ast.UnaryOp):
             parameters = self._collect_unaryop(node.value)
         elif isinstance(node.value, ast.Name):
@@ -134,7 +135,7 @@ class FunctionParser:
                 self.variable_map[target.id] = {
                     "stmt": node,
                     "dependencies": parameters,
-                    "type": "assign"
+                    "type": node_type
                 }
                 if is_state_var:
                     self.state_variables.append(target.id)
@@ -218,6 +219,7 @@ class FunctionParser:
         """
         variables = []
         is_state_var = False
+        node_type = "assign"
         if isinstance(node.args, list):
             variables.extend([
                 arg.id for arg in node.args if isinstance(arg, ast.Name)
@@ -233,10 +235,16 @@ class FunctionParser:
         if isinstance(node.func, ast.Name):
             if node.func.id == "integ":
                 is_state_var = True
+            if node.func.id == "delay":
+                is_state_var = False
+                node_type = "delay"
         elif isinstance(node.func, ast.Attribute):
             if node.func.attr == "integ":
                 is_state_var = True
-        return variables, is_state_var
+            if node.func.attr == "delay":
+                is_state_var = False
+                node_type = "delay"
+        return variables, is_state_var, node_type
 
     def _collect_expr(self, node: ast.Expr) -> None:
         """Create a dict of ast.Expr nodes to include in the output function.

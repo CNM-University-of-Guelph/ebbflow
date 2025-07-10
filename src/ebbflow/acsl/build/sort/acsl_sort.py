@@ -1,6 +1,7 @@
 """Implement ACSL sorting algorithm."""
 
 import ast
+import hashlib
 from collections import OrderedDict
 from typing import List, Dict
 
@@ -149,6 +150,10 @@ class AcslSort:
                 new_func.body.append(
                     cls._create_procedural_call(var_name, info["stmt"])
                 )
+            elif info["type"] == "delay":
+                new_func.body.append(
+                    cls._create_delay_call(var_name, info["stmt"])
+                )
             else:
                 raise ValueError(f"Unknown type: {info["type"]}")
 
@@ -190,3 +195,32 @@ class AcslSort:
             targets=[ast.Name(id=var_name, ctx=ast.Store())],
             value=function_call
         )
+
+    @classmethod
+    def _create_delay_call(
+        cls,
+        var_name: str,
+        stmt: ast.Assign
+    ) -> ast.Assign:
+        """Add delay_id to the delay call.
+
+        Parameters
+        ----------
+        var_name : str
+            The name of the variable to assign the result to.
+        stmt : ast.Assign
+            The ast.Assign node that represents the assignment.
+
+        Returns
+        -------
+        ast.Assign
+            The ast.Assign node that represents the assignment.
+        """
+        args = stmt.value.args
+        delay_id = hashlib.md5(str(args + [var_name]).encode()).hexdigest()
+        new_assign = ast.Assign(
+            targets=[ast.Name(id=var_name, ctx=ast.Store())],
+            value=stmt.value
+        )
+        new_assign.value.args.append(ast.Constant(value=delay_id))
+        return new_assign
