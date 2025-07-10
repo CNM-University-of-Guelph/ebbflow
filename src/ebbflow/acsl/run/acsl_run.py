@@ -97,7 +97,7 @@ class AcslRun(AcslLib):
         self.derivative_functions = {}
         for deriv_name, (deriv_func, arg_names) in derivative_functions.items():
             self.derivative_functions[deriv_name] = (
-                self.bind_derivative_function(deriv_func, arg_names),
+                self.bind_derivative_function(deriv_func),
                 arg_names
             )
 
@@ -168,7 +168,7 @@ class AcslRun(AcslLib):
 
         return bound_method
     
-    def bind_derivative_function(self, func: Callable, arg_names: List[str]) -> Callable:
+    def bind_derivative_function(self, func: Callable) -> Callable:
         """Bind a derivative function to the class.
         
         Parameters
